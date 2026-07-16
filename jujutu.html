@@ -1,0 +1,1096 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>呪術廻戦 — 無量空処 vs 領域展開</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@700;900&family=Noto+Sans+JP:wght@400;700&display=swap');
+  :root {
+    --gojo-color: #818cf8;
+    --sukuna-color: #f87171;
+  }
+  body {
+    background: #07070f;
+    font-family: 'Noto Sans JP', sans-serif;
+    overflow-x: hidden;
+  }
+  .title-font { font-family: 'Noto Serif JP', serif; }
+
+  /* 背景演出 */
+  .bg-cursed {
+    background: radial-gradient(ellipse at 30% 50%, rgba(99,74,198,0.18) 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 50%, rgba(220,38,38,0.15) 0%, transparent 60%),
+                #07070f;
+  }
+
+  /* HPバー */
+  .hp-bar { transition: width 0.5s cubic-bezier(.4,0,.2,1); }
+  .mp-bar { transition: width 0.4s ease; }
+
+  /* スキルカード */
+  .skill-btn {
+    position: relative;
+    transition: all 0.2s;
+    border: 1px solid rgba(255,255,255,0.1);
+    overflow: hidden;
+  }
+  .skill-btn::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.06), transparent);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .skill-btn:hover:not(:disabled)::before { opacity: 1; }
+  .skill-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+  .skill-btn:active:not(:disabled) { transform: translateY(0); }
+  .skill-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  /* キャラクター画像エリア */
+  .char-glyph {
+    font-size: 5rem;
+    line-height: 1;
+    filter: drop-shadow(0 0 20px currentColor);
+  }
+  .char-img {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    object-position: top center;
+    border-radius: 12px;
+    border: 2px solid rgba(255,255,255,0.1);
+    filter: drop-shadow(0 0 10px rgba(0,0,0,0.8));
+    transition: filter 0.3s;
+  }
+  .char-img.shield-active {
+    filter: drop-shadow(0 0 14px #94a3b8) brightness(1.15);
+  }
+  .char-img-wrap {
+    position: relative;
+    width: 80px;
+    height: 80px;
+    flex-shrink: 0;
+  }
+  .shield-overlay {
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    background: rgba(148,163,184,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .shield-overlay.visible { opacity: 1; }
+
+  /* ダメージ数字アニメ */
+  @keyframes dmgPop {
+    0%   { transform: translateY(0) scale(1.4); opacity: 1; }
+    80%  { transform: translateY(-50px) scale(1); opacity: 0.8; }
+    100% { transform: translateY(-70px) scale(0.8); opacity: 0; }
+  }
+  .dmg-float {
+    position: absolute;
+    font-weight: 900;
+    font-size: 2rem;
+    pointer-events: none;
+    animation: dmgPop 1s ease forwards;
+    z-index: 50;
+    white-space: nowrap;
+  }
+
+  /* ログエリア */
+  @keyframes logIn {
+    from { opacity: 0; transform: translateX(-8px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  .log-line { animation: logIn 0.25s ease forwards; }
+
+  /* 領域展開フラッシュ */
+  @keyframes domainFlash {
+    0%,100% { opacity: 0; }
+    20%,60% { opacity: 1; }
+  }
+  .domain-flash { animation: domainFlash 0.6s ease; }
+
+  /* 勝敗オーバーレイ */
+  @keyframes resultIn {
+    from { opacity: 0; transform: scale(0.85); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+  .result-box { animation: resultIn 0.45s cubic-bezier(.34,1.56,.64,1) forwards; }
+
+  /* MPアイコン */
+  .mp-gem { display:inline-block; width:10px; height:10px; border-radius:50%; background:#818cf8; margin:0 1px; }
+  .mp-gem.empty { background:#2a2a3e; }
+
+  /* ターン表示 */
+  @keyframes turnBounce {
+    0%,100% { transform: scale(1); }
+    50%      { transform: scale(1.08); }
+  }
+  .turn-badge { animation: turnBounce 1.2s ease infinite; }
+</style>
+</head>
+<body class="bg-cursed min-h-screen flex flex-col items-center justify-start py-6 px-3 gap-5">
+
+<!-- タイトル -->
+<div class="text-center">
+  <h1 class="title-font text-3xl font-black tracking-widest text-white">呪術廻戦</h1>
+  <p class="text-xs text-gray-500 tracking-widest mt-0.5">CURSED TECHNIQUE BATTLE</p>
+</div>
+
+<!-- キャラクター選択画面 -->
+<div id="char-select" class="w-full max-w-2xl flex flex-col gap-5">
+  <div class="text-center text-gray-300 text-sm font-bold tracking-widest">— 自分のキャラクターを選択 —</div>
+  <div id="char-grid" class="grid grid-cols-3 gap-3 sm:grid-cols-3"></div>
+
+  <div class="text-center text-red-300 text-sm font-bold tracking-widest mt-3">— 相手のキャラクターを選択 —</div>
+  <div id="enemy-grid" class="grid grid-cols-3 gap-3 sm:grid-cols-3"></div>
+
+  <div class="text-center text-yellow-300 text-sm font-bold tracking-widest mt-3">— CPUの強さ —</div>
+  <div id="difficulty-btns" class="flex gap-3 justify-center">
+    <button data-diff="easy"   class="diff-btn px-5 py-2 rounded-full border-2 border-green-500 text-green-300 font-bold text-sm transition hover:bg-green-500 hover:text-white">Easy</button>
+    <button data-diff="normal" class="diff-btn px-5 py-2 rounded-full border-2 border-yellow-500 bg-yellow-500 text-gray-900 font-bold text-sm transition hover:bg-yellow-400">Normal</button>
+    <button data-diff="hard"   class="diff-btn px-5 py-2 rounded-full border-2 border-red-500 text-red-300 font-bold text-sm transition hover:bg-red-500 hover:text-white">Hard</button>
+  </div>
+
+  <button id="btn-start-battle" disabled
+    class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-lg shadow-lg transition">
+    バトル開始
+  </button>
+</div>
+
+<!-- バトルエリア -->
+<div id="battle-area" class="hidden w-full max-w-2xl flex flex-col gap-4">
+
+  <!-- ===== 後手（両面宿儺）===== -->
+  <div id="sukuna-area" class="bg-gray-900 bg-opacity-80 rounded-2xl p-4 border border-red-900 border-opacity-50">
+    <div class="flex items-start gap-4">
+      <!-- グリフ -->
+      <div class="relative flex-shrink-0 w-20 h-20 flex items-center justify-center">
+        <span id="sukuna-glyph" class="char-glyph text-red-500">👹</span>
+      </div>
+      <!-- ステータス -->
+      <div class="flex-1 flex flex-col gap-2">
+        <div class="flex items-center justify-between">
+          <span class="title-font text-lg font-black text-red-400 tracking-wider">両面宿儺</span>
+          <span class="text-xs text-gray-500">王の器</span>
+        </div>
+        <!-- HPバー -->
+        <div>
+          <div class="flex justify-between text-xs text-gray-400 mb-0.5">
+            <span>HP</span><span id="sukuna-hp-lbl">100 / 100</span>
+          </div>
+          <div class="w-full bg-gray-800 rounded-full h-3 overflow-hidden">
+            <div id="sukuna-hp-bar" class="hp-bar h-3 rounded-full bg-red-600" style="width:100%"></div>
+          </div>
+        </div>
+        <!-- MPバー -->
+        <div>
+          <div class="flex justify-between text-xs text-gray-400 mb-0.5">
+            <span>呪力 (MP)</span><span id="sukuna-mp-lbl">5 / 5</span>
+          </div>
+          <div class="flex gap-1" id="sukuna-mp-gems"></div>
+        </div>
+      </div>
+    </div>
+    <!-- 宿儺の技（CPU表示用） -->
+    <div id="sukuna-action-display" class="mt-2 min-h-[24px] text-center text-sm text-red-300 font-bold opacity-0 transition-opacity duration-300"></div>
+  </div>
+
+  <!-- VS ターン表示 -->
+  <div class="flex items-center justify-center gap-4">
+    <div class="h-px flex-1 bg-gradient-to-r from-transparent to-indigo-800"></div>
+    <div id="turn-badge" class="turn-badge px-5 py-1.5 rounded-full text-xs font-black tracking-widest border"
+         style="background:#1e1b4b; border-color:#818cf8; color:#818cf8;">
+      ターン 1
+    </div>
+    <div class="h-px flex-1 bg-gradient-to-l from-transparent to-red-900"></div>
+  </div>
+
+  <!-- ===== 先手（五条悟）===== -->
+  <div id="gojo-area" class="bg-gray-900 bg-opacity-80 rounded-2xl p-4 border border-indigo-900 border-opacity-50">
+    <div class="flex items-start gap-4">
+      <!-- グリフ -->
+      <div class="relative flex-shrink-0 w-20 h-20 flex items-center justify-center">
+        <span id="gojo-glyph" class="char-glyph text-indigo-400">🔵</span>
+      </div>
+      <!-- ステータス -->
+      <div class="flex-1 flex flex-col gap-2">
+        <div class="flex items-center justify-between">
+          <span id="gojo-name" class="title-font text-lg font-black text-indigo-400 tracking-wider">五条悟</span>
+          <span id="gojo-title" class="text-xs text-gray-500">最強の呪術師</span>
+        </div>
+        <!-- HPバー -->
+        <div>
+          <div class="flex justify-between text-xs text-gray-400 mb-0.5">
+            <span>HP</span><span id="gojo-hp-lbl">100 / 100</span>
+          </div>
+          <div class="w-full bg-gray-800 rounded-full h-3 overflow-hidden">
+            <div id="gojo-hp-bar" class="hp-bar h-3 rounded-full bg-indigo-500" style="width:100%"></div>
+          </div>
+        </div>
+        <!-- MPバー -->
+        <div>
+          <div class="flex justify-between text-xs text-gray-400 mb-0.5">
+            <span>呪力 (MP)</span><span id="gojo-mp-lbl">5 / 5</span>
+          </div>
+          <div class="flex gap-1" id="gojo-mp-gems"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== スキルパネル ===== -->
+  <div id="skill-panel" class="flex flex-col gap-3">
+    <div class="text-xs text-center text-gray-500 tracking-widest">— 術式を選択 —</div>
+    <div id="skill-buttons" class="grid grid-cols-2 gap-2 sm:grid-cols-3"></div>
+  </div>
+
+  <!-- ===== バトルログ ===== -->
+  <div class="bg-gray-950 bg-opacity-90 rounded-xl border border-gray-800 p-3">
+    <div class="text-xs text-gray-600 font-bold mb-2 tracking-widest">BATTLE LOG</div>
+    <div id="log-area" class="flex flex-col gap-1 max-h-36 overflow-y-auto text-xs pr-1"></div>
+  </div>
+</div>
+
+<!-- 勝敗オーバーレイ -->
+<div id="result-overlay" class="hidden fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 px-4">
+  <div class="result-box bg-gray-900 border-2 rounded-2xl p-10 flex flex-col items-center gap-5 max-w-sm w-full text-center shadow-2xl">
+    <div id="result-icon" class="text-6xl"></div>
+    <div id="result-title" class="title-font text-3xl font-black"></div>
+    <div id="result-sub" class="text-gray-400 text-sm"></div>
+    <button id="btn-retry" class="mt-2 px-8 py-3 rounded-xl font-black text-base transition bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg">
+      もう一度
+    </button>
+  </div>
+</div>
+
+
+<script>
+'use strict';
+/* ============================================================
+   呪術廻戦バトルゲーム
+   キャラクター選択 + バトル
+   ============================================================ */
+
+// ===== キャラクター全データ =====
+const CHARACTERS = {
+  gojo: {
+    id: 'gojo', name: '五条悟', icon: '🔵', title: '最強の呪術師',
+    color: 'border-indigo-500', textColor: 'text-indigo-400', barColor: 'bg-indigo-500',
+    glow: '#818cf8', hp: 100,
+    skills: [
+      { id:'blue', name:'蒼', icon:'🔵', mp:1, damage:[12,18], desc:'引力を操る術式。', color:'from-blue-900 to-indigo-900', glow:'#60a5fa', effect:'normal' },
+      { id:'red', name:'赫', icon:'🔴', mp:2, damage:[20,28], desc:'斥力を解放する術式。', color:'from-red-900 to-pink-900', glow:'#f87171', effect:'normal' },
+      { id:'hollow', name:'虚式・茈', icon:'💜', mp:4, damage:[40,55], desc:'蒼と赫の合成。最強の術式。', color:'from-purple-900 to-indigo-900', glow:'#a78bfa', effect:'normal' },
+      { id:'infinity', name:'無限', icon:'♾️', mp:2, damage:[0,0], desc:'次の攻撃を1回無効化。', color:'from-slate-800 to-gray-900', glow:'#94a3b8', effect:'shield' },
+      { id:'limitless', name:'無量空処', icon:'✨', mp:5, damage:[55,70], desc:'領域展開。2ターン術式封印。', color:'from-indigo-900 to-violet-900', glow:'#818cf8', effect:'domain' },
+      { id:'punch', name:'呪力パンチ', icon:'👊', mp:0, damage:[6,12], desc:'MP0の基本攻撃。', color:'from-gray-800 to-gray-900', glow:'#6b7280', effect:'normal' },
+    ],
+  },
+  itadori: {
+    id: 'itadori', name: '虎杖悠仁', icon: '🥊', title: '宿儺の器',
+    color: 'border-pink-500', textColor: 'text-pink-400', barColor: 'bg-pink-500',
+    glow: '#ec4899', hp: 110,
+    skills: [
+      { id:'divergent', name:'逕庭拳', icon:'💥', mp:1, damage:[14,22], desc:'時間差で呪力が打撃に追いつく。', color:'from-pink-900 to-red-900', glow:'#f472b6', effect:'normal' },
+      { id:'black', name:'黒閃', icon:'⚡', mp:3, damage:[35,50], desc:'打撃と呪力が0.000001秒以内に衝突。', color:'from-gray-900 to-pink-900', glow:'#facc15', effect:'normal' },
+      { id:'combo', name:'連撃', icon:'👊👊', mp:2, damage:[22,32], desc:'高速の拳打コンビネーション。', color:'from-rose-900 to-red-900', glow:'#fb7185', effect:'normal' },
+      { id:'i_punch', name:'呪力パンチ', icon:'👊', mp:0, damage:[8,14], desc:'MP0の基本攻撃。', color:'from-gray-800 to-gray-900', glow:'#6b7280', effect:'normal' },
+      { id:'shrine', name:'反転術式', icon:'💚', mp:3, damage:[0,0], heal:[20,30], desc:'HP回復。', color:'from-green-900 to-teal-900', glow:'#34d399', effect:'heal' },
+      { id:'i_domain', name:'自閉円頓裹', icon:'🌀', mp:5, damage:[50,65], desc:'領域展開。2ターン術式封印。', color:'from-pink-900 to-violet-900', glow:'#ec4899', effect:'domain' },
+    ],
+  },
+  fushiguro: {
+    id: 'fushiguro', name: '伏黒恵', icon: '🐕', title: '十種影法術',
+    color: 'border-slate-400', textColor: 'text-slate-300', barColor: 'bg-slate-500',
+    glow: '#94a3b8', hp: 95,
+    skills: [
+      { id:'nue', name:'鵺', icon:'🦅', mp:1, damage:[12,20], desc:'翼を持つ式神で攻撃。', color:'from-slate-800 to-blue-900', glow:'#60a5fa', effect:'normal' },
+      { id:'toad', name:'蝦蟇', icon:'🐸', mp:1, damage:[10,16], desc:'式神・蝦蟇で舌攻撃。', color:'from-green-900 to-slate-900', glow:'#4ade80', effect:'normal' },
+      { id:'elephant', name:'満象', icon:'🐘', mp:3, damage:[28,40], desc:'大量の水を放つ巨大式神。', color:'from-blue-900 to-slate-800', glow:'#38bdf8', effect:'normal' },
+      { id:'chimera', name:'不知井底', icon:'⚡🦅', mp:2, damage:[20,30], desc:'鵺と蝦蟇の合体式神。', color:'from-violet-900 to-blue-900', glow:'#a78bfa', effect:'normal' },
+      { id:'f_domain', name:'嵌合暗翳庭', icon:'🌑', mp:5, damage:[50,66], desc:'領域展開。2ターン術式封印。', color:'from-gray-900 to-indigo-900', glow:'#818cf8', effect:'domain' },
+      { id:'f_punch', name:'呪力パンチ', icon:'👊', mp:0, damage:[6,11], desc:'MP0の基本攻撃。', color:'from-gray-800 to-gray-900', glow:'#6b7280', effect:'normal' },
+    ],
+  },
+  kugisaki: {
+    id: 'kugisaki', name: '釘崎野薔薇', icon: '🔨', title: '芻霊呪法',
+    color: 'border-orange-400', textColor: 'text-orange-400', barColor: 'bg-orange-500',
+    glow: '#f97316', hp: 90,
+    skills: [
+      { id:'straw', name:'芻霊呪法', icon:'🪆', mp:1, damage:[14,20], desc:'藁人形と釘で呪いを刻む。', color:'from-orange-900 to-red-900', glow:'#fb923c', effect:'normal' },
+      { id:'hairpin', name:'簪', icon:'📌', mp:2, damage:[22,32], desc:'釘に呪力を込めて射出。', color:'from-amber-900 to-orange-900', glow:'#f59e0b', effect:'normal' },
+      { id:'resonance', name:'共鳴り', icon:'💀', mp:3, damage:[30,44], desc:'対象の一部から本体にダメージ。', color:'from-red-900 to-orange-900', glow:'#ef4444', effect:'normal' },
+      { id:'blackflash_k', name:'黒閃', icon:'⚡', mp:4, damage:[38,52], desc:'呪力の核心に触れる一撃。', color:'from-gray-900 to-orange-900', glow:'#facc15', effect:'normal' },
+      { id:'k_punch', name:'釘バット', icon:'🔨', mp:0, damage:[7,13], desc:'MP0の基本攻撃。', color:'from-gray-800 to-gray-900', glow:'#6b7280', effect:'normal' },
+    ],
+  },
+  maki: {
+    id: 'maki', name: '禪院真希', icon: '🗡️', title: '天与呪縛',
+    color: 'border-emerald-500', textColor: 'text-emerald-400', barColor: 'bg-emerald-500',
+    glow: '#10b981', hp: 105,
+    skills: [
+      { id:'spear', name:'游雲', icon:'🗡️', mp:1, damage:[15,22], desc:'特級呪具。圧倒的な膂力。', color:'from-emerald-900 to-green-900', glow:'#34d399', effect:'normal' },
+      { id:'slash_m', name:'斬撃連打', icon:'⚔️⚔️', mp:2, damage:[22,34], desc:'高速の斬撃コンビネーション。', color:'from-green-900 to-slate-800', glow:'#4ade80', effect:'normal' },
+      { id:'pierce', name:'突き', icon:'🔱', mp:3, damage:[32,44], desc:'全力の貫通突き。', color:'from-teal-900 to-green-900', glow:'#2dd4bf', effect:'normal' },
+      { id:'m_full', name:'全力解放', icon:'💪', mp:4, damage:[42,56], desc:'天与呪縛の身体能力を解放。', color:'from-emerald-900 to-teal-900', glow:'#10b981', effect:'normal' },
+      { id:'m_punch', name:'拳打', icon:'👊', mp:0, damage:[8,14], desc:'MP0の基本攻撃。', color:'from-gray-800 to-gray-900', glow:'#6b7280', effect:'normal' },
+    ],
+  },
+  panda: {
+    id: 'panda', name: 'パンダ', icon: '🐼', title: '突然変異呪骸',
+    color: 'border-gray-400', textColor: 'text-gray-300', barColor: 'bg-gray-400',
+    glow: '#9ca3af', hp: 120,
+    skills: [
+      { id:'gorilla', name:'お兄ちゃん（ゴリラモード）', icon:'🦍', mp:3, damage:[30,44], desc:'剛力のゴリラ核に切替。', color:'from-orange-900 to-amber-900', glow:'#f59e0b', effect:'normal' },
+      { id:'drum', name:'太鼓鐘', icon:'🥁', mp:2, damage:[20,30], desc:'ゴリラモードの衝撃波。', color:'from-amber-900 to-gray-800', glow:'#fbbf24', effect:'normal' },
+      { id:'p_swap', name:'核入替', icon:'🔄', mp:1, damage:[0,0], heal:[15,20], desc:'核を切り替えてHP回復。', color:'from-green-900 to-gray-800', glow:'#34d399', effect:'heal' },
+      { id:'p_rush', name:'ラッシュ', icon:'🐼💨', mp:2, damage:[18,28], desc:'突然変異呪骸の突進。', color:'from-slate-800 to-gray-900', glow:'#94a3b8', effect:'normal' },
+      { id:'p_punch', name:'パンチ', icon:'👊', mp:0, damage:[8,14], desc:'MP0の基本攻撃。', color:'from-gray-800 to-gray-900', glow:'#6b7280', effect:'normal' },
+    ],
+  },
+  inumaki: {
+    id: 'inumaki', name: '狗巻棘', icon: '📢', title: '呪言師',
+    color: 'border-violet-400', textColor: 'text-violet-400', barColor: 'bg-violet-500',
+    glow: '#8b5cf6', hp: 80,
+    skills: [
+      { id:'stop', name:'動くな', icon:'🛑', mp:1, damage:[0,0], desc:'相手の次ターンをスキップ。', color:'from-violet-900 to-purple-900', glow:'#8b5cf6', effect:'stun' },
+      { id:'run', name:'逃げろ', icon:'💨', mp:1, damage:[10,16], desc:'呪言で吹き飛ばす。', color:'from-purple-900 to-slate-800', glow:'#a78bfa', effect:'normal' },
+      { id:'explode', name:'ぶっとべ', icon:'💣', mp:3, damage:[30,42], desc:'強力な呪言。反動あり。', color:'from-red-900 to-violet-900', glow:'#ef4444', effect:'normal' },
+      { id:'crush', name:'潰れろ', icon:'🫳', mp:4, damage:[38,54], desc:'最強の呪言。大ダメージ。', color:'from-violet-900 to-red-900', glow:'#c084fc', effect:'normal' },
+      { id:'in_punch', name:'体術', icon:'👊', mp:0, damage:[5,10], desc:'MP0の基本攻撃。', color:'from-gray-800 to-gray-900', glow:'#6b7280', effect:'normal' },
+    ],
+  },
+  mahito: {
+    id: 'mahito', name: '真人', icon: '👤', title: '無為転変',
+    color: 'border-cyan-400', textColor: 'text-cyan-400', barColor: 'bg-cyan-500',
+    glow: '#06b6d4', hp: 100,
+    skills: [
+      { id:'idle', name:'無為転変', icon:'🖐️', mp:2, damage:[20,30], desc:'魂の形を変える術式。', color:'from-cyan-900 to-blue-900', glow:'#22d3ee', effect:'normal' },
+      { id:'soul_touch', name:'魂への接触', icon:'👋', mp:1, damage:[12,20], desc:'触れるだけで魂を歪ませる。', color:'from-teal-900 to-cyan-900', glow:'#2dd4bf', effect:'normal' },
+      { id:'instant', name:'即席 改造人間', icon:'🧟', mp:2, damage:[18,26], desc:'転変させた人間を投入。', color:'from-slate-800 to-cyan-900', glow:'#67e8f9', effect:'normal' },
+      { id:'body_rep', name:'形態変化', icon:'🔀', mp:1, damage:[0,0], heal:[15,22], desc:'自身の魂を修復。', color:'from-green-900 to-cyan-900', glow:'#34d399', effect:'heal' },
+      { id:'m_domain', name:'自閉円頓裹', icon:'🖤', mp:5, damage:[52,68], desc:'領域展開。2ターン術式封印。', color:'from-cyan-900 to-gray-900', glow:'#06b6d4', effect:'domain' },
+      { id:'m_punch', name:'呪力打撃', icon:'👊', mp:0, damage:[6,12], desc:'MP0の基本攻撃。', color:'from-gray-800 to-gray-900', glow:'#6b7280', effect:'normal' },
+    ],
+  },
+  kenjaku: {
+    id: 'kenjaku', name: '羂索', icon: '🧠', title: '千年の呪術師',
+    color: 'border-yellow-500', textColor: 'text-yellow-400', barColor: 'bg-yellow-500',
+    glow: '#eab308', hp: 100,
+    skills: [
+      { id:'gravity', name:'うずまき', icon:'🌀', mp:3, damage:[28,40], desc:'取り込んだ呪霊を凝縮放出。', color:'from-yellow-900 to-orange-900', glow:'#facc15', effect:'normal' },
+      { id:'cso', name:'呪霊操術', icon:'👻', mp:2, damage:[18,28], desc:'呪霊を操って攻撃。', color:'from-orange-900 to-amber-900', glow:'#f59e0b', effect:'normal' },
+      { id:'idle_k', name:'無為転変（複製）', icon:'🖐️', mp:2, damage:[20,30], desc:'奪った術式を行使。', color:'from-cyan-900 to-yellow-900', glow:'#22d3ee', effect:'normal' },
+      { id:'rct_k', name:'反転術式', icon:'💚', mp:2, damage:[0,0], heal:[18,26], desc:'HP回復。', color:'from-green-900 to-yellow-900', glow:'#34d399', effect:'heal' },
+      { id:'k_domain', name:'胎蔵遍野', icon:'🧠', mp:5, damage:[52,68], desc:'領域展開。2ターン術式封印。', color:'from-yellow-900 to-gray-900', glow:'#eab308', effect:'domain' },
+      { id:'k_punch', name:'呪力攻撃', icon:'👊', mp:0, damage:[6,12], desc:'MP0の基本攻撃。', color:'from-gray-800 to-gray-900', glow:'#6b7280', effect:'normal' },
+    ],
+  },
+};
+
+// 宿儺（CPU専用データ — 既存の特殊ルール維持）
+const GOJO_SKILLS = [
+  {
+    id: 'blue',
+    name: '蒼 (ブルー)',
+    icon: '🔵',
+    mp: 1,
+    damage: [12, 18],
+    desc: '引力を操る術式。確実なダメージ。',
+    color: 'from-blue-900 to-indigo-900',
+    glow: '#60a5fa',
+    effect: 'blue',
+  },
+  {
+    id: 'red',
+    name: '赫 (レッド)',
+    icon: '🔴',
+    mp: 2,
+    damage: [20, 28],
+    desc: '斥力を解放する術式。高威力。',
+    color: 'from-red-900 to-pink-900',
+    glow: '#f87171',
+    effect: 'red',
+  },
+  {
+    id: 'hollow',
+    name: '虚式・茈',
+    icon: '💜',
+    mp: 4,
+    damage: [40, 55],
+    desc: '蒼と赫を合成した最強の術式。',
+    color: 'from-purple-900 to-indigo-900',
+    glow: '#a78bfa',
+    effect: 'purple',
+  },
+  {
+    id: 'infinity',
+    name: '無限',
+    icon: '♾️',
+    mp: 2,
+    damage: [0, 0],
+    heal: 0,
+    shield: true,
+    desc: '次の攻撃を1回無効化する。',
+    color: 'from-slate-800 to-gray-900',
+    glow: '#94a3b8',
+    effect: 'shield',
+  },
+  {
+    id: 'limitless',
+    name: '無量空処',
+    icon: '✨',
+    mp: 5,
+    damage: [55, 70],
+    desc: '領域展開。全知全能の空間に閉じ込める。',
+    color: 'from-indigo-900 to-violet-900',
+    glow: '#818cf8',
+    effect: 'domain',
+  },
+  {
+    id: 'punch',
+    name: '呪力パンチ',
+    icon: '👊',
+    mp: 0,
+    damage: [6, 12],
+    desc: 'MP0で使える基本攻撃。',
+    color: 'from-gray-800 to-gray-900',
+    glow: '#6b7280',
+    effect: 'basic',
+  },
+];
+
+const SUKUNA_SKILLS = [
+  {
+    id: 's_slash',
+    name: '斬撃',
+    icon: '⚔️',
+    mp: 1,
+    damage: [14, 20],
+    desc: '無数の斬撃を放つ。',
+    effect: 'slash',
+  },
+  {
+    id: 's_fire',
+    name: '炎矢',
+    icon: '🔥',
+    mp: 2,
+    damage: [22, 30],
+    desc: '【要：解＋捌】解と捌を両方使うと解放される。',
+    effect: 'fire',
+    requiresBoth: true,  // 解と捌を両方使って初めて使用可能
+  },
+  {
+    id: 's_dismantle',
+    name: '解 (ばらばら)',
+    icon: '💥',
+    mp: 3,
+    damage: [30, 42],
+    desc: '対象を切り刻む術式。',
+    effect: 'dismantle',
+  },
+  {
+    id: 's_cleave',
+    name: '捌 (さばき)',
+    icon: '🌀',
+    mp: 4,
+    damage: [40, 56],
+    desc: '術式の出力を対象に合わせる。',
+    effect: 'cleave',
+  },
+  {
+    id: 's_domain',
+    name: '伏魔御厨子',
+    icon: '⛩️',
+    mp: 5,
+    damage: [60, 75],
+    desc: '領域展開。あらゆる攻撃が必中。',
+    effect: 'domain',
+  },
+  {
+    id: 's_basic',
+    name: '呪力拳',
+    icon: '🤜',
+    mp: 0,
+    damage: [7, 13],
+    desc: 'MP0で使える基本攻撃。',
+    effect: 'basic',
+  },
+];
+
+// ===== ゲーム状態 =====
+const MAX_HP = 100;
+const MAX_MP = 10;
+const MP_REGEN = 1;
+const INIT_MP = 5;
+
+let state = {};
+
+let selectedCharId = 'gojo'; // デフォルト
+let selectedEnemyId = 'sukuna'; // デフォルト敵
+let cpuDifficulty = 'normal'; // 'easy' | 'normal' | 'hard'
+
+// 宿儺用CPUスキルデータ（特殊ルール付き）
+const ENEMY_DATA = {
+  sukuna: {
+    name: '両面宿儺', icon: '👹', title: '王の器',
+    color: 'border-red-500', textColor: 'text-red-400', barColor: 'bg-red-600',
+    glow: '#ef4444', hp: 100,
+    skills: null, // SUKUNA_SKILLS を使用（特殊ルールあり）
+    special: true, // 解+捌→炎矢の特殊ルール
+  },
+};
+
+function initGame() {
+  const charData = CHARACTERS[selectedCharId];
+  // 敵キャラ情報（宿儺 or CHARACTERSから）
+  const isSukuna = selectedEnemyId === 'sukuna';
+  const enemyData = isSukuna ? ENEMY_DATA.sukuna : CHARACTERS[selectedEnemyId];
+  const enemySkills = isSukuna ? SUKUNA_SKILLS : enemyData.skills;
+
+  state = {
+    turn: 1,
+    phase: 'player',
+    playerCharId: selectedCharId,
+    enemyCharId: selectedEnemyId,
+    cpuDifficulty: cpuDifficulty,
+    player: {
+      name: charData.name,
+      hp: charData.hp, maxHp: charData.hp,
+      mp: INIT_MP, maxMp: MAX_MP,
+      shield: false,
+      skills: charData.skills,
+      domainCooldown: 0,
+      icon: charData.icon,
+      textColor: charData.textColor,
+      barColor: charData.barColor,
+    },
+    cpu: {
+      name: enemyData.name,
+      hp: enemyData.hp, maxHp: enemyData.hp,
+      mp: INIT_MP, maxMp: MAX_MP,
+      shield: false,
+      skills: enemySkills,
+      usedDismantle: false,
+      usedCleave: false,
+      domainCooldown: 0,
+      icon: enemyData.icon,
+      textColor: enemyData.textColor,
+      glow: enemyData.glow,
+      special: isSukuna,
+    },
+    busy: false,
+  };
+  // UIのプレイヤーキャラ名・アイコン更新
+  document.getElementById('gojo-name').textContent = charData.name;
+  document.getElementById('gojo-title').textContent = charData.title;
+  document.getElementById('gojo-glyph').textContent = charData.icon;
+  document.getElementById('gojo-glyph').style.filter = `drop-shadow(0 0 20px ${charData.glow})`;
+  // UIの敵キャラ名・アイコン更新
+  document.getElementById('sukuna-glyph').textContent = enemyData.icon;
+  document.getElementById('sukuna-glyph').style.filter = `drop-shadow(0 0 20px ${enemyData.glow})`;
+  document.querySelector('#sukuna-area .title-font').textContent = enemyData.name;
+  document.querySelector('#sukuna-area .text-xs.text-gray-500').textContent = enemyData.title || '';
+
+  document.getElementById('result-overlay').classList.add('hidden');
+  document.getElementById('log-area').innerHTML = '';
+  document.getElementById('sukuna-action-display').style.opacity = '0';
+  renderAll();
+  addLog(`⚔️ バトル開始！ ${charData.name} vs ${enemyData.name}`, 'text-yellow-300');
+}
+
+// ===== 描画 =====
+function renderAll() {
+  renderChar('gojo', state.player);
+  renderChar('sukuna', state.cpu);
+  renderSkills();
+  renderTurnBadge();
+}
+
+function renderChar(id, ch) {
+  const hpPct = Math.max(0, ch.hp / ch.maxHp * 100);
+  document.getElementById(`${id}-hp-lbl`).textContent = `${Math.max(0,ch.hp)} / ${ch.maxHp}`;
+  document.getElementById(`${id}-hp-bar`).style.width = hpPct + '%';
+  // HPバー色変化
+  const bar = document.getElementById(`${id}-hp-bar`);
+  if (hpPct > 50) bar.className = `hp-bar h-3 rounded-full ${id==='gojo'?'bg-indigo-500':'bg-red-600'}`;
+  else if (hpPct > 25) bar.className = 'hp-bar h-3 rounded-full bg-yellow-500';
+  else bar.className = 'hp-bar h-3 rounded-full bg-red-400';
+
+  document.getElementById(`${id}-mp-lbl`).textContent = `${ch.mp} / ${ch.maxMp}`;
+  // MPジェム
+  const gems = document.getElementById(`${id}-mp-gems`);
+  gems.innerHTML = '';
+  for (let i = 0; i < ch.maxMp; i++) {
+    const g = document.createElement('div');
+    g.style.cssText = `width:10px;height:10px;border-radius:50%;margin:0 1px;background:${i < ch.mp ? (id==='gojo'?'#818cf8':'#f87171') : '#2a2a3e'};transition:background 0.3s;`;
+    gems.appendChild(g);
+  }
+  // シールドアイコン
+  const glyph = document.getElementById(`${id}-glyph`);
+  if (ch.shield) {
+    glyph.textContent = id === 'gojo' ? '🛡️' : '🛡️';
+    glyph.style.filter = 'drop-shadow(0 0 16px #94a3b8)';
+  } else {
+    if (id === 'gojo') {
+      const charData = CHARACTERS[state.playerCharId] || CHARACTERS.gojo;
+      glyph.textContent = charData.icon;
+      glyph.style.filter = `drop-shadow(0 0 20px ${charData.glow})`;
+    } else {
+      glyph.textContent = '👹';
+      glyph.style.filter = 'drop-shadow(0 0 20px #ef4444)';
+    }
+  }
+}
+
+function renderSkills() {
+  const container = document.getElementById('skill-buttons');
+  container.innerHTML = '';
+  const sealed = state.player.domainCooldown > 0; // 術式封印中
+  for (const sk of state.player.skills) {
+    // 封印中はMP0の技しか使えない
+    const canUse = state.player.mp >= sk.mp && state.phase === 'player' && !state.busy
+      && (!sealed || sk.mp === 0);
+    const btn = document.createElement('button');
+    btn.className = `skill-btn rounded-xl p-3 text-left flex flex-col gap-1 bg-gradient-to-br ${sk.color}`;
+    btn.disabled = !canUse;
+    const sealedLabel = (sealed && sk.mp > 0) ? '<div class="text-xs text-orange-400 font-bold mt-0.5">🚫 術式封印中</div>' : '';
+    btn.innerHTML = `
+      <div class="flex items-center justify-between">
+        <span class="text-base">${sk.icon}</span>
+        <span class="text-xs font-bold ${sk.mp===0?'text-gray-400':'text-yellow-300'}">MP ${sk.mp}</span>
+      </div>
+      <div class="text-xs font-bold text-white leading-tight">${sk.name}</div>
+      <div class="text-xs text-gray-400 leading-tight">${sk.desc}</div>
+      ${sealedLabel}
+    `;
+    btn.addEventListener('click', () => playerAction(sk));
+    container.appendChild(btn);
+  }
+}
+
+function renderTurnBadge() {
+  const badge = document.getElementById('turn-badge');
+  badge.textContent = `ターン ${state.turn}`;
+}
+
+// ===== ログ =====
+function addLog(msg, cls = 'text-gray-300') {
+  const area = document.getElementById('log-area');
+  const div = document.createElement('div');
+  div.className = 'log-line ' + cls;
+  div.textContent = msg;
+  area.prepend(div);
+}
+
+// ===== ダメージ浮かび上がり =====
+function showDamageFloat(targetId, text, color) {
+  const area = document.getElementById(`${targetId}-area`);
+  const el = document.createElement('div');
+  el.className = 'dmg-float';
+  el.style.color = color;
+  el.style.left = '50%';
+  el.style.top = '20px';
+  el.style.transform = 'translateX(-50%)';
+  el.textContent = text;
+  area.style.position = 'relative';
+  area.appendChild(el);
+  setTimeout(() => el.remove(), 1000);
+}
+
+// ===== 領域展開演出 =====
+function domainEffect(color, cb) {
+  const flash = document.createElement('div');
+  flash.className = 'domain-flash fixed inset-0 z-40 pointer-events-none';
+  flash.style.background = color;
+  document.body.appendChild(flash);
+  setTimeout(() => { flash.remove(); cb && cb(); }, 650);
+}
+
+// ===== ダメージ計算 =====
+function rollDamage(skill) {
+  const [lo, hi] = skill.damage;
+  return Math.floor(Math.random() * (hi - lo + 1)) + lo;
+}
+
+// ===== プレイヤーのアクション =====
+function playerAction(skill) {
+  if (state.busy || state.phase !== 'player') return;
+  if (state.player.mp < skill.mp) return;
+  // 術式封印中はMP0の技しか使えない
+  if (state.player.domainCooldown > 0 && skill.mp > 0) return;
+
+  state.busy = true;
+  state.phase = 'cpu'; // 次のアクションを無効化
+  state.player.mp -= skill.mp;
+
+  // 領域展開を使ったら2ターン術式封印
+  if (skill.effect === 'domain') {
+    state.player.domainCooldown = 2;
+    addLog('⚠️ 無量空処の反動…2ターンの間、術式が使えない！', 'text-orange-400');
+  }
+
+  renderSkills(); // 即時無効化
+
+  const execute = () => {
+    if (skill.effect === 'shield') {
+      state.player.shield = true;
+      addLog(`🛡️ ${state.player.name}が「${skill.name}」を発動！次の攻撃を無効化する。`, 'text-slate-300');
+      showDamageFloat('gojo', 'SHIELD!', '#94a3b8');
+      renderChar('gojo', state.player);
+      setTimeout(cpuTurn, 900);
+    } else if (skill.effect === 'heal') {
+      const [lo, hi] = skill.heal;
+      const amt = Math.floor(Math.random() * (hi - lo + 1)) + lo;
+      state.player.hp = Math.min(state.player.maxHp, state.player.hp + amt);
+      addLog(`💚 ${state.player.name}の「${skill.name}」！ HP+${amt}回復！`, 'text-green-400');
+      showDamageFloat('gojo', `+${amt}`, '#34d399');
+      renderChar('gojo', state.player);
+      setTimeout(cpuTurn, 900);
+    } else if (skill.effect === 'stun') {
+      addLog(`🛑 ${state.player.name}の「${skill.name}」！宿儺は次ターン行動不能！`, 'text-violet-400');
+      showDamageFloat('sukuna', 'STUN!', '#8b5cf6');
+      state.cpu.stunned = true;
+      setTimeout(cpuTurn, 900);
+    } else if (skill.effect === 'domain') {
+      addLog(`✨ 領域展開！「${skill.name}」！`, 'text-indigo-300');
+      domainEffect('rgba(99,74,198,0.5)', () => {
+        applyDamage('sukuna', skill, 'gojo');
+        if (state.phase !== 'end') setTimeout(cpuTurn, 900);
+      });
+    } else {
+      const dmg = rollDamage(skill);
+      addLog(`${state.player.icon || '🔵'} ${state.player.name}の「${skill.name}」！ → ${dmg}ダメージ！`, 'text-indigo-300');
+      applyDamageRaw('sukuna', dmg, skill.glow);
+      if (state.phase !== 'end') setTimeout(cpuTurn, 900);
+    }
+  };
+
+  setTimeout(execute, 200);
+}
+
+function applyDamage(targetId, skill, _src) {
+  const target = targetId === 'sukuna' ? state.cpu : state.player;
+  const dmg = rollDamage(skill);
+  if (target.shield) {
+    target.shield = false;
+    addLog(`🛡️ 無限発動！攻撃を無効化！`, 'text-slate-400');
+    showDamageFloat(targetId, 'BLOCKED!', '#94a3b8');
+    renderAll();
+    return;
+  }
+  target.hp = Math.max(0, target.hp - dmg);
+  showDamageFloat(targetId, `-${dmg}`, skill.glow || '#fff');
+  renderChar(targetId, target);
+  checkDeath();
+}
+
+function applyDamageRaw(targetId, dmg, color) {
+  const target = targetId === 'sukuna' ? state.cpu : state.player;
+  if (target.shield) {
+    target.shield = false;
+    addLog(`🛡️ ${target.name}のシールドが攻撃を弾いた！`, 'text-slate-400');
+    showDamageFloat(targetId, 'BLOCKED!', '#94a3b8');
+    renderAll();
+    return;
+  }
+  target.hp = Math.max(0, target.hp - dmg);
+  showDamageFloat(targetId, `-${dmg}`, color || '#fff');
+  renderChar(targetId, target);
+  checkDeath();
+}
+
+// ===== CPUターン =====
+function cpuTurn() {
+  if (state.phase === 'end') return;
+
+  // MP回復（両者）
+  state.player.mp = Math.min(state.player.maxMp, state.player.mp + MP_REGEN);
+  state.cpu.mp    = Math.min(state.cpu.maxMp,    state.cpu.mp    + MP_REGEN);
+  state.turn++;
+  renderTurnBadge();
+
+  // 術式封印カウンターを減少
+  if (state.player.domainCooldown > 0) state.player.domainCooldown--;
+  if (state.cpu.domainCooldown > 0) state.cpu.domainCooldown--;
+
+  // スタン判定（呪言「動くな」の効果）
+  if (state.cpu.stunned) {
+    state.cpu.stunned = false;
+    addLog('🛑 宿儺は行動不能…！', 'text-violet-300');
+    setTimeout(finishTurn, 600);
+    return;
+  }
+
+  // CPU思考
+  const cpu   = state.cpu;
+  const cpuSealed = cpu.domainCooldown > 0; // 術式封印中
+  // 炎矢ロック（宿儺の場合のみ）
+  const fireUnlocked = cpu.special ? (cpu.usedDismantle && cpu.usedCleave) : true;
+  const affordable = cpu.skills.filter(sk => {
+    if (sk.mp > cpu.mp) return false;
+    if (sk.requiresBoth && !fireUnlocked) return false;
+    // 術式封印中はMP0の技しか使えない
+    if (cpuSealed && sk.mp > 0) return false;
+    return true;
+  });
+
+  // 戦略: 難易度に応じた思考
+  let chosen;
+  const diff = state.cpuDifficulty;
+
+  if (diff === 'easy') {
+    // Easy: 完全ランダム
+    chosen = affordable[Math.floor(Math.random() * affordable.length)];
+  } else if (diff === 'hard') {
+    // Hard: 残りHP少ないとき最大火力、通常時も高コスト優先
+    if (cpu.hp < 40 && affordable.some(sk => sk.mp >= 3)) {
+      const power = affordable.filter(sk => sk.mp >= 3);
+      chosen = power[Math.floor(Math.random() * power.length)];
+    } else {
+      // コストの2乗で重み付け（高コスト技を強く優先）
+      const weights = affordable.map(sk => (sk.mp + 1) * (sk.mp + 1));
+      const total   = weights.reduce((a,b) => a+b, 0);
+      let r = Math.random() * total;
+      chosen = affordable[0];
+      for (let i = 0; i < affordable.length; i++) {
+        r -= weights[i]; if (r <= 0) { chosen = affordable[i]; break; }
+      }
+    }
+  } else {
+    // Normal: HPが30以下なら高火力、それ以外は重み付きランダム
+    if (cpu.hp < 30 && affordable.some(sk => sk.mp >= 3)) {
+      const power = affordable.filter(sk => sk.mp >= 3);
+      chosen = power[Math.floor(Math.random() * power.length)];
+    } else {
+      const weights = affordable.map(sk => sk.mp + 1);
+      const total   = weights.reduce((a,b) => a+b, 0);
+      let r = Math.random() * total;
+      chosen = affordable[0];
+      for (let i = 0; i < affordable.length; i++) {
+        r -= weights[i]; if (r <= 0) { chosen = affordable[i]; break; }
+      }
+    }
+  }
+
+  cpu.mp -= chosen.mp;
+
+  // 使用フラグを更新
+  if (chosen.id === 's_dismantle') cpu.usedDismantle = true;
+  if (chosen.id === 's_cleave')    cpu.usedCleave    = true;
+  if (chosen.id === 's_fire') {
+    addLog('🔥 宿儺の封印術式「炎矢」が解放された！', 'text-orange-400');
+  }
+  // 領域展開を使ったら2ターン術式封印
+  if (chosen.effect === 'domain') {
+    cpu.domainCooldown = 2;
+    addLog(`⚠️ ${cpu.name}の領域展開の反動…2ターン術式が使えない！`, 'text-orange-400');
+  }
+
+  // CPU技表示
+  const disp = document.getElementById('sukuna-action-display');
+  disp.textContent = `「${chosen.name}」${chosen.icon}`;
+  disp.style.opacity = '1';
+  setTimeout(() => { disp.style.opacity = '0'; }, 1500);
+
+  const executeCpu = () => {
+    if (chosen.effect === 'domain') {
+      addLog(`⛩️ 領域展開！「${chosen.name}」！`, 'text-red-400');
+      domainEffect('rgba(220,38,38,0.45)', () => {
+        applyDamageRaw('gojo', rollDamage(chosen), '#f87171');
+        if (state.phase !== 'end') finishTurn();
+      });
+    } else if (chosen.effect === 'heal') {
+      const [lo, hi] = chosen.heal;
+      const amt = Math.floor(Math.random() * (hi - lo + 1)) + lo;
+      cpu.hp = Math.min(cpu.maxHp, cpu.hp + amt);
+      addLog(`💚 ${cpu.name}の「${chosen.name}」！ HP+${amt}回復！`, 'text-green-400');
+      showDamageFloat('sukuna', `+${amt}`, '#34d399');
+      renderChar('sukuna', cpu);
+      if (state.phase !== 'end') finishTurn();
+    } else if (chosen.effect === 'shield') {
+      cpu.shield = true;
+      addLog(`🛡️ ${cpu.name}が「${chosen.name}」を発動！次の攻撃を無効化！`, 'text-slate-300');
+      showDamageFloat('sukuna', 'SHIELD!', '#94a3b8');
+      renderChar('sukuna', cpu);
+      if (state.phase !== 'end') finishTurn();
+    } else {
+      const dmg = rollDamage(chosen);
+      addLog(`${cpu.icon||'👹'} ${cpu.name}の「${chosen.name}」！ → ${dmg}ダメージ！`, 'text-red-400');
+      applyDamageRaw('gojo', dmg, '#f87171');
+      // 解/捌 使用後に炎矢解放状況を通知（宿儺のみ）
+      if (cpu.special && (chosen.id === 's_dismantle' || chosen.id === 's_cleave')) {
+        const d = cpu.usedDismantle, c = cpu.usedCleave;
+        if (d && c) {
+          addLog('⚠️ 「解」と「捌」使用完了…「炎矢」が解放される！', 'text-orange-300');
+        } else if (d && !c) {
+          addLog('💥 「解」使用。残り「捌」で炎矢解放。', 'text-yellow-600');
+        } else if (!d && c) {
+          addLog('🌀 「捌」使用。残り「解」で炎矢解放。', 'text-yellow-600');
+        }
+      }
+      if (state.phase !== 'end') finishTurn();
+    }
+  };
+
+  setTimeout(executeCpu, 600);
+}
+
+function finishTurn() {
+  if (state.phase === 'end') return;
+  state.phase = 'player';
+  state.busy  = false;
+  renderAll();
+  addLog(`── ターン ${state.turn} 開始 ──`, 'text-gray-600');
+}
+
+// ===== 死亡チェック =====
+function checkDeath() {
+  if (state.phase === 'end') return;
+  if (state.player.hp <= 0 && state.cpu.hp <= 0) {
+    endGame('draw');
+  } else if (state.cpu.hp <= 0) {
+    endGame('win');
+  } else if (state.player.hp <= 0) {
+    endGame('lose');
+  }
+}
+
+// ===== ゲーム終了 =====
+function endGame(result) {
+  state.phase = 'end';
+  state.busy  = true;
+  renderSkills();
+
+  setTimeout(() => {
+    const overlay = document.getElementById('result-overlay');
+    const icon    = document.getElementById('result-icon');
+    const title   = document.getElementById('result-title');
+    const sub     = document.getElementById('result-sub');
+
+    if (result === 'win') {
+      icon.textContent  = '🏆';
+      title.textContent = '勝利！';
+      title.className   = 'title-font text-3xl font-black text-indigo-400';
+      sub.textContent   = '「次は試験に遅刻しないように気をつけます」— 五条悟';
+      overlay.querySelector('.result-box').style.borderColor = '#818cf8';
+    } else if (result === 'lose') {
+      icon.textContent  = '💀';
+      title.textContent = '敗北…';
+      title.className   = 'title-font text-3xl font-black text-red-400';
+      sub.textContent   = '「俺の強さに怯えるな。呪術師ならば立って戦え」— 両面宿儺';
+      overlay.querySelector('.result-box').style.borderColor = '#f87171';
+    } else {
+      icon.textContent  = '⚔️';
+      title.textContent = '引き分け';
+      title.className   = 'title-font text-3xl font-black text-yellow-400';
+      sub.textContent   = '互いの術式が完全に相殺された。';
+      overlay.querySelector('.result-box').style.borderColor = '#facc15';
+    }
+    overlay.classList.remove('hidden');
+  }, 600);
+}
+
+// ===== リスタート =====
+document.getElementById('btn-retry').addEventListener('click', () => {
+  document.getElementById('battle-area').classList.add('hidden');
+  document.getElementById('char-select').classList.remove('hidden');
+  document.getElementById('result-overlay').classList.add('hidden');
+});
+
+// ===== キャラ選択UI =====
+function renderCharSelect() {
+  // 自分キャラグリッド
+  const grid = document.getElementById('char-grid');
+  grid.innerHTML = '';
+  Object.values(CHARACTERS).forEach(ch => {
+    const card = document.createElement('button');
+    const isSelected = selectedCharId === ch.id;
+    card.className = `flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition cursor-pointer
+      ${isSelected ? ch.color + ' bg-gray-800 shadow-lg' : 'border-gray-700 bg-gray-900 hover:bg-gray-800 hover:border-gray-500'}`;
+    card.innerHTML = `
+      <span class="text-3xl">${ch.icon}</span>
+      <span class="text-xs font-bold ${ch.textColor}">${ch.name}</span>
+      <span class="text-xs text-gray-500">${ch.title}</span>
+      <span class="text-xs text-gray-600">HP:${ch.hp}</span>
+    `;
+    card.addEventListener('click', () => {
+      selectedCharId = ch.id;
+      renderCharSelect();
+      updateStartBtn();
+    });
+    grid.appendChild(card);
+  });
+
+  // 敵キャラグリッド（全CHARACTERS + 宿儺）
+  const egrid = document.getElementById('enemy-grid');
+  egrid.innerHTML = '';
+  const enemies = [
+    ENEMY_DATA.sukuna,
+    ...Object.values(CHARACTERS),
+  ];
+  enemies.forEach(ch => {
+    const eid = ch === ENEMY_DATA.sukuna ? 'sukuna' : ch.id;
+    const card = document.createElement('button');
+    const isSelected = selectedEnemyId === eid;
+    card.className = `flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition cursor-pointer
+      ${isSelected ? (ch.color||'border-red-500') + ' bg-gray-800 shadow-lg' : 'border-gray-700 bg-gray-900 hover:bg-gray-800 hover:border-gray-500'}`;
+    card.innerHTML = `
+      <span class="text-3xl">${ch.icon}</span>
+      <span class="text-xs font-bold ${ch.textColor||'text-red-400'}">${ch.name}</span>
+      <span class="text-xs text-gray-500">${ch.title||''}</span>
+      <span class="text-xs text-gray-600">HP:${ch.hp}</span>
+    `;
+    card.addEventListener('click', () => {
+      selectedEnemyId = eid;
+      renderCharSelect();
+      updateStartBtn();
+    });
+    egrid.appendChild(card);
+  });
+
+  // 難易度ボタン
+  document.querySelectorAll('.diff-btn').forEach(btn => {
+    const d = btn.dataset.diff;
+    btn.classList.remove('bg-green-500','bg-yellow-500','bg-red-500','text-white','text-gray-900','opacity-50');
+    if (d === cpuDifficulty) {
+      if (d === 'easy')   btn.classList.add('bg-green-500','text-white');
+      if (d === 'normal') btn.classList.add('bg-yellow-500','text-gray-900');
+      if (d === 'hard')   btn.classList.add('bg-red-500','text-white');
+    } else {
+      btn.classList.add('opacity-50');
+    }
+  });
+}
+
+function updateStartBtn() {
+  document.getElementById('btn-start-battle').disabled = !(selectedCharId && selectedEnemyId);
+}
+
+document.querySelectorAll('.diff-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    cpuDifficulty = btn.dataset.diff;
+    renderCharSelect();
+  });
+});
+
+document.getElementById('btn-start-battle').addEventListener('click', () => {
+  document.getElementById('char-select').classList.add('hidden');
+  document.getElementById('battle-area').classList.remove('hidden');
+  initGame();
+});
+
+// ===== 起動 =====
+renderCharSelect();
+</script>
+</body>
+</html>
