@@ -78,6 +78,29 @@
   <span id="word-count" class="text-xs text-gray-400">0 件</span>
 </div>
 
+<!-- ===== ゲーム進行ダッシュボード ===== -->
+<section id="game-dashboard" class="max-w-2xl mx-auto mb-6 hidden">
+  <div class="bg-gradient-to-br from-indigo-50 to-violet-50 border border-indigo-100 rounded-2xl p-4 sm:p-5 shadow-sm">
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <p class="text-xs font-bold tracking-wide text-indigo-500">GAME PROGRESS</p>
+        <h2 class="mt-1 text-lg font-bold text-gray-800">🎯 今日の指名手配単語</h2>
+      </div>
+      <div class="flex gap-3 text-right text-sm">
+        <span><span class="block text-[10px] text-gray-400">EXP</span><b id="game-xp" class="text-indigo-600">0</b></span>
+        <span><span class="block text-[10px] text-gray-400">COIN</span><b id="game-coins" class="text-amber-500">0</b></span>
+      </div>
+    </div>
+    <div id="wanted-word-list" class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
+    <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+      <p id="daily-bonus-status" class="text-xs text-gray-500"></p>
+      <button id="btn-claim-daily-bonus" class="hidden px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-white text-xs font-bold rounded-lg shadow transition active:scale-95">
+        本日のボーナスを受け取る
+      </button>
+    </div>
+  </div>
+</section>
+
 <!-- ===== 単語帳モード（通常画面） ===== -->
 <div id="wordbook-mode">
 
@@ -266,6 +289,7 @@
 // ===== データ管理 =====
 const STORAGE_KEY = 'hanyu_wordbook';
 const WORDS_JSON_VERSION_KEY = 'hanyu_words_json_version';
+const GAME_STATE_KEY = 'hanyu_game_state';
 const USER_LESSON_KEY = '__user__';
 
 const $ = id => document.getElementById(id);
@@ -283,6 +307,184 @@ const elements = {
   testMode: $('test-mode'),
   answerInput: $('inp-answer'),
 };
+
+function getLocalDate() {
+  return new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
+}
+
+function getWordId(word) {
+  return word.id || `${word.lesson || 'user'}:${word.hanzi}:${word.pinyin}`;
+}
+
+function createGameState() {
+  return {
+    xp: 0,
+    coins: 0,
+    streak: 0,
+    lastPlayDate: null,
+    lastBonusDate: null,
+    stats: {},
+    wanted: { date: null, wordIds: [], progress: {} },
+  };
+}
+
+function loadGameState() {
+  try {
+    return { ...createGameState(), ...JSON.parse(localStorage.getItem(GAME_STATE_KEY)) };
+  } catch (error) {
+    return createGameState();
+  }
+}
+
+let gameState = loadGameState();
+
+function saveGameState() {
+  localStorage.setItem(GAME_STATE_KEY, JSON.stringify(gameState));
+}
+
+function getWantedWords() {
+  return gameState.wanted.wordIds
+    .map(id => words.find(word => getWordId(word) === id))
+    .filter(Boolean);
+}
+
+function refreshWantedWords() {
+  const today = getLocalDate();
+  if (gameState.wanted.date === today && getWantedWords().length > 0) return;
+
+  const rankedWords = [...words]
+    .sort((a, b) => {
+      const aStat = gameState.stats[getWordId(a)] || {};
+      const bStat = gameState.stats[getWordId(b)] || {};
+      const aWeakness = (aStat.wrong || 0) * 3 - (aStat.correct || 0);
+      const bWeakness = (bStat.wrong || 0) * 3 - (bStat.correct || 0);
+      return bWeakness - aWeakness || Math.random() - 0.5;
+    })
+    .slice(0, Math.min(3, words.length));
+
+  gameState.wanted = {
+    date: today,
+    wordIds: rankedWords.map(getWordId),
+    progress: {},
+  };
+  saveGameState();
+}
+
+function renderGameDashboard() {
+  const dashboard = $('game-dashboard');
+  if (words.length === 0) {
+    setHidden(dashboard, true);
+    return;
+  }
+
+  refreshWantedWords();
+  setHidden(dashboard, false);
+  $('game-xp').textContent = gameState.xp;
+  $('game-coins').textContent = gameState.coins;
+
+  $('wanted-word-list').innerHTML = getWantedWords().map(word => {
+    const progress = gameState.wanted.progress[getWordId(word)] || [];
+    return `
+      <div class="bg-white/80 rounded-xl px-3 py-2 flex items-center justify-between gap-2">
+        <div class="min-w-0"><b class="text-gray-800">${escapeHtml(word.hanzi)}</b><span class="ml-2 text-xs text-blue-500">${escapeHtml(word.pinyin)}</span></div>
+        <span class="text-xs font-bold text-indigo-600 whitespace-nowrap">捕獲 ${progress.length} / 3</span>
+      </div>`;
+  }).join('');
+
+  const playedToday = gameState.lastPlayDate === getLocalDate();
+  const claimedToday = gameState.lastBonusDate === getLocalDate();
+  $('daily-bonus-status').textContent = claimedToday
+    ? `本日のボーナスを受け取りました（${gameState.streak}日連続）`
+    : playedToday
+      ? 'ゲーム完了！ ボーナスを受け取れます'
+      : 'ゲームを1回完了すると本日のボーナスを受け取れます';
+  setHidden($('btn-claim-daily-bonus'), !playedToday || claimedToday);
+}
+
+function recordWordAttempt(word, isCorrect, questionType) {
+  if (!word) return null;
+  const wordId = getWordId(word);
+  const stats = gameState.stats[wordId] || { correct: 0, wrong: 0, formats: [] };
+  if (isCorrect) {
+    stats.correct++;
+    if (!stats.formats.includes(questionType)) stats.formats.push(questionType);
+    gameState.xp += 2;
+  } else {
+    stats.wrong++;
+  }
+  stats.lastStudiedAt = Date.now();
+  gameState.stats[wordId] = stats;
+
+  let addedWantedFormat = false;
+  let awardedWantedBonus = false;
+  if (isCorrect && gameState.wanted.wordIds.includes(wordId)) {
+    const progress = gameState.wanted.progress[wordId] || [];
+    const wasComplete = progress.length >= 3;
+    if (!progress.includes(questionType)) {
+      progress.push(questionType);
+      addedWantedFormat = true;
+    }
+    gameState.wanted.progress[wordId] = progress;
+    if (!wasComplete && progress.length === 3) {
+      gameState.coins += 5;
+      gameState.xp += 10;
+      awardedWantedBonus = true;
+    }
+  }
+  saveGameState();
+  return { addedWantedFormat, awardedWantedBonus };
+}
+
+function revertWordAttempt(word, isCorrect, questionType, attempt) {
+  if (!word) return;
+  const wordId = getWordId(word);
+  const stats = gameState.stats[wordId];
+  if (!stats) return;
+  if (isCorrect) {
+    stats.correct = Math.max(0, (stats.correct || 0) - 1);
+    gameState.xp = Math.max(0, gameState.xp - 2);
+  } else {
+    stats.wrong = Math.max(0, (stats.wrong || 0) - 1);
+  }
+  if (isCorrect && attempt?.addedWantedFormat && gameState.wanted.wordIds.includes(wordId)) {
+    const progress = gameState.wanted.progress[wordId] || [];
+    gameState.wanted.progress[wordId] = progress.filter(type => type !== questionType);
+    if (attempt.awardedWantedBonus) {
+      gameState.coins = Math.max(0, gameState.coins - 5);
+      gameState.xp = Math.max(0, gameState.xp - 10);
+    }
+  }
+  saveGameState();
+}
+
+function recordCompletedGame() {
+  const today = getLocalDate();
+  if (gameState.lastPlayDate !== today) {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayKey = new Intl.DateTimeFormat('en-CA', {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(yesterday);
+    gameState.streak = gameState.lastPlayDate === yesterdayKey ? gameState.streak + 1 : 1;
+    gameState.lastPlayDate = today;
+  }
+  gameState.xp += 5;
+  saveGameState();
+  renderGameDashboard();
+}
+
+function claimDailyBonus() {
+  const today = getLocalDate();
+  if (gameState.lastPlayDate !== today || gameState.lastBonusDate === today) return;
+  const bonus = 10 + Math.min((gameState.streak - 1) * 5, 30);
+  gameState.coins += bonus;
+  gameState.xp += 5;
+  gameState.lastBonusDate = today;
+  saveGameState();
+  renderGameDashboard();
+}
 
 // localStorageからユーザー追加分の単語を読み込む
 function loadUserWords() {
@@ -328,6 +530,7 @@ async function initWords() {
   presetWords = await fetchPresetWords() || [];
   words = [...loadUserWords(), ...presetWords];
   renderLessonList();
+  renderGameDashboard();
 }
 
 async function refreshWords() {
@@ -919,6 +1122,7 @@ function checkAnswer() {
   const correctAnswer = cfg.getAnswer(testState.current);
   const acceptedAnswers = getAcceptedAnswers(correctAnswer);
   const isCorrect = acceptedAnswers.includes(userAnswer);
+  recordWordAttempt(testState.current, isCorrect, `writing:${testState.type}`);
 
   if (isCorrect) {
     testState.correct++;
@@ -1022,9 +1226,11 @@ function dismissFlashcard(direction) {
   // direction: 'right' = correct, 'left' = wrong
   if (direction === 'right') testState.correct++;
   else testState.wrong++;
+  const questionType = `flashcard:${testState.fcType}`;
+  const attempt = recordWordAttempt(testState.current, direction === 'right', questionType);
 
   // 履歴に保存
-  fcHistory.push({ word: testState.current, direction });
+  fcHistory.push({ word: testState.current, direction, questionType, attempt });
 
   const flashcard = $('flashcard');
   const translateX = direction === 'right' ? '120%' : '-120%';
@@ -1054,6 +1260,7 @@ function undoFlashcard() {
   // スコアを戻す
   if (last.direction === 'right') testState.correct--;
   else testState.wrong--;
+  revertWordAttempt(last.word, last.direction === 'right', last.questionType, last.attempt);
 
   // 現在のカードをプールに戻す
   if (testState.current) {
@@ -1130,6 +1337,7 @@ function updateFcUndoBtn() {
 // --- 共通 ---
 function showTestComplete() {
   showTestPanels(['test-complete', 'test-score']);
+  recordCompletedGame();
   const total = testState.correct + testState.wrong;
   const pct = total > 0 ? Math.round(testState.correct / total * 100) : 0;
   $('test-final-score').innerHTML =
@@ -1154,6 +1362,7 @@ $('btn-fc-correct').addEventListener('click', () => dismissFlashcard('right'));
 $('btn-fc-wrong').addEventListener('click', () => dismissFlashcard('left'));
 $('btn-fc-undo').addEventListener('click', undoFlashcard);
 $('btn-fc-undo-standalone').addEventListener('click', undoFlashcard);
+$('btn-claim-daily-bonus').addEventListener('click', claimDailyBonus);
 
 // 記述式: 出題形式ボタン
 document.querySelectorAll('.test-type-btn').forEach(btn => {
