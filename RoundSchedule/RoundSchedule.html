@@ -4,6 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Daily Schedule</title>
+<link rel="icon" href="./schedule-icon.svg" type="image/svg+xml"/>
 <!-- PWA -->
 <link rel="manifest" href="./ds-manifest.json"/>
 <meta name="theme-color" content="#ffffff"/>
@@ -19,9 +20,8 @@ body{font-family:'Segoe UI','Noto Sans JP',sans-serif;background:var(--bg);color
 /* 円グラフSVG */
 .chart-container{position:relative;width:100%;max-width:420px;aspect-ratio:1/1;margin:0 auto;}
 .chart-container svg{width:100%;height:100%;cursor:default;}
-.slice{cursor:grab;transition:opacity .15s;}
+.slice{cursor:pointer;transition:opacity .15s;}
 .slice:hover{opacity:.85;}
-.slice.dragging{opacity:.7;cursor:grabbing;}
 /* タイムラベル */
 .time-label{font-size:10px;fill:var(--muted);user-select:none;pointer-events:none;}
 /* カード */
@@ -32,8 +32,6 @@ body{font-family:'Segoe UI','Noto Sans JP',sans-serif;background:var(--bg);color
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:100;opacity:0;pointer-events:none;transition:opacity .2s;}
 .modal-bg.open{opacity:1;pointer-events:auto;}
 .modal-box{background:#fff;border-radius:20px;padding:28px;width:92%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.15);}
-/* 統計バー */
-.stat-bar{height:8px;border-radius:4px;transition:width .4s ease;}
 /* レスポンシブ */
 @media(min-width:768px){
   .app-layout{display:grid;grid-template-columns:1fr 380px;gap:24px;align-items:start;}
@@ -43,14 +41,11 @@ body{font-family:'Segoe UI','Noto Sans JP',sans-serif;background:var(--bg);color
 <body class="p-4 sm:p-6 lg:p-8">
 
 <!-- ===== アプリヘッダー ===== -->
-<header class="max-w-5xl mx-auto flex items-center justify-between mb-6">
+<header class="max-w-5xl mx-auto mb-6">
   <div>
     <h1 class="text-xl font-bold tracking-tight">📅 Daily Schedule</h1>
     <p id="today-date" class="text-xs text-gray-400 mt-0.5"></p>
   </div>
-  <button id="btn-add-task" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold rounded-xl shadow transition active:scale-95">
-    ＋ タスク追加
-  </button>
 </header>
 
 <!-- ===== メインレイアウト ===== -->
@@ -58,20 +53,21 @@ body{font-family:'Segoe UI','Noto Sans JP',sans-serif;background:var(--bg);color
 
   <!-- 左: 円グラフ -->
   <div class="card mb-6 md:mb-0">
+    <div class="flex items-center justify-between mb-2">
+      <button id="btn-prev-day" class="px-3 py-2 text-sm font-bold text-gray-500 hover:bg-gray-100 rounded-lg transition" aria-label="前日">‹ 前日</button>
+      <button id="btn-today" class="px-3 py-2 text-xs font-bold text-blue-600 hover:bg-blue-50 rounded-lg transition">今日</button>
+      <button id="btn-next-day" class="px-3 py-2 text-sm font-bold text-gray-500 hover:bg-gray-100 rounded-lg transition" aria-label="翌日">翌日 ›</button>
+    </div>
     <div class="chart-container" id="chart-container">
       <svg id="chart-svg" viewBox="0 0 400 400"></svg>
     </div>
+    <button id="btn-add-task" class="mt-4 w-full py-3 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold rounded-xl shadow transition active:scale-[.98]">
+      ＋ タスク追加
+    </button>
   </div>
 
   <!-- 右: サイドバー -->
   <div class="flex flex-col gap-4">
-
-    <!-- デイリー統計 -->
-    <div class="card">
-      <h2 class="text-sm font-bold text-gray-700 mb-3">📊 デイリー統計</h2>
-      <div id="stats-area" class="flex flex-col gap-2 text-xs"></div>
-      <div id="stats-empty" class="text-xs text-gray-400 text-center py-4">タスクを追加すると統計が表示されます</div>
-    </div>
 
     <!-- タスク一覧 -->
     <div class="card">
@@ -92,7 +88,7 @@ body{font-family:'Segoe UI','Noto Sans JP',sans-serif;background:var(--bg);color
 <!-- ===== タスク追加モーダル ===== -->
 <div id="modal-task" class="modal-bg">
   <div class="modal-box">
-    <h3 class="text-base font-bold mb-4">タスクを追加</h3>
+    <h3 id="task-modal-title" class="text-base font-bold mb-4">タスクを追加</h3>
     <div class="flex flex-col gap-3">
       <div>
         <label class="text-xs font-semibold text-gray-500">タスク名</label>
@@ -115,7 +111,7 @@ body{font-family:'Segoe UI','Noto Sans JP',sans-serif;background:var(--bg);color
       <div id="modal-task-err" class="text-xs text-red-500 hidden"></div>
       <div class="flex gap-2 mt-2">
         <button id="btn-modal-cancel" class="flex-1 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm transition">キャンセル</button>
-        <button id="btn-modal-save" class="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm transition">保存</button>
+        <button id="btn-modal-save" class="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm transition">追加</button>
       </div>
     </div>
   </div>
@@ -154,6 +150,12 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 const CX = 200, CY = 200, R = 160, INNER_R = 80;
 const STORAGE_KEY = 'daily_schedule_data';
 
+function localDateKey(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+}
+let selectedDate = localDateKey();
+let lastKnownToday = selectedDate;
+
 // ========== デフォルトカテゴリー ==========
 const DEFAULT_CATEGORIES = [
   { id: 'work',  name: '仕事', color: '#2563eb' },
@@ -173,7 +175,14 @@ function defaultState() {
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) { const s = JSON.parse(raw); if (s.categories && s.tasks) return s; }
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (s.categories && s.tasks) {
+        // 旧データには日付がないため、初回移行時は当日の予定として扱う
+        s.tasks.forEach(task => { if (!task.date) task.date = localDateKey(); });
+        return s;
+      }
+    }
   } catch(e) {}
   return defaultState();
 }
@@ -189,6 +198,7 @@ function polarToXY(cx,cy,r,angleDeg) {
   return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
 }
 function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function selectedTasks() { return state.tasks.filter(task => task.date === selectedDate); }
 
 // ========== 円グラフ描画 ==========
 function renderChart() {
@@ -227,7 +237,7 @@ function renderChart() {
   }
 
   // タスクスライス
-  state.tasks.forEach(task => {
+  selectedTasks().forEach(task => {
     const cat = state.categories.find(c => c.id === task.categoryId);
     const color = cat ? cat.color : '#9ca3af';
     const startAngle = minutesToAngle(task.startMin);
@@ -281,92 +291,15 @@ function renderChart() {
   centerText.setAttribute('fill', '#374151'); centerText.setAttribute('font-size', '14');
   centerText.setAttribute('font-weight', 'bold');
   const now = new Date();
-  centerText.textContent = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  centerText.textContent = selectedDate === localDateKey(now)
+    ? `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`
+    : '24H';
   svg.appendChild(centerText);
 
-  // ドラッグイベント設定
-  setupDrag();
-}
-
-// ========== ドラッグ＆ドロップ ==========
-let dragState = null;
-
-function setupDrag() {
-  const svg = document.getElementById('chart-svg');
-  const slices = svg.querySelectorAll('.slice');
-  slices.forEach(slice => {
-    slice.addEventListener('mousedown', startDrag);
-    slice.addEventListener('touchstart', startDrag, { passive: false });
+  // スライスをクリックして編集
+  svg.querySelectorAll('.slice').forEach(slice => {
+    slice.addEventListener('click', () => openTaskModal(slice.dataset.taskId));
   });
-}
-
-function startDrag(e) {
-  e.preventDefault();
-  const taskId = e.currentTarget.dataset.taskId;
-  const task = state.tasks.find(t => t.id === taskId);
-  if (!task) return;
-
-  const svg = document.getElementById('chart-svg');
-  const rect = svg.getBoundingClientRect();
-  const point = getEventPoint(e);
-  const startAngle = getAngleFromPoint(point.x - rect.left, point.y - rect.top, rect.width, rect.height);
-
-  dragState = { taskId, startAngle, origStart: task.startMin, origEnd: task.endMin };
-  e.currentTarget.classList.add('dragging');
-
-  document.addEventListener('mousemove', onDrag);
-  document.addEventListener('mouseup', endDrag);
-  document.addEventListener('touchmove', onDrag, { passive: false });
-  document.addEventListener('touchend', endDrag);
-}
-
-function onDrag(e) {
-  if (!dragState) return;
-  e.preventDefault();
-  const svg = document.getElementById('chart-svg');
-  const rect = svg.getBoundingClientRect();
-  const point = getEventPoint(e);
-  const currentAngle = getAngleFromPoint(point.x - rect.left, point.y - rect.top, rect.width, rect.height);
-
-  let deltaAngle = currentAngle - dragState.startAngle;
-  if (deltaAngle > 180) deltaAngle -= 360;
-  if (deltaAngle < -180) deltaAngle += 360;
-
-  const deltaMin = Math.round(deltaAngle / 360 * 1440 / 15) * 15; // 15分単位
-
-  const task = state.tasks.find(t => t.id === dragState.taskId);
-  if (!task) return;
-
-  task.startMin = ((dragState.origStart + deltaMin) % 1440 + 1440) % 1440;
-  task.endMin = ((dragState.origEnd + deltaMin) % 1440 + 1440) % 1440;
-
-  renderChart();
-  renderTaskList();
-  renderStats();
-}
-
-function endDrag(e) {
-  if (!dragState) return;
-  dragState = null;
-  document.removeEventListener('mousemove', onDrag);
-  document.removeEventListener('mouseup', endDrag);
-  document.removeEventListener('touchmove', onDrag);
-  document.removeEventListener('touchend', endDrag);
-  document.querySelectorAll('.slice.dragging').forEach(el => el.classList.remove('dragging'));
-  saveState();
-  scheduleNotifications();
-}
-
-function getEventPoint(e) {
-  if (e.touches && e.touches.length > 0) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
-  return { x: e.clientX, y: e.clientY };
-}
-
-function getAngleFromPoint(x, y, w, h) {
-  const cx = w / 2, cy = h / 2;
-  const dx = x - cx, dy = y - cy;
-  let angle = Math.atan2(dy, dx) * 180 / Math.PI;
-  return angle;
 }
 
 // ========== タスク一覧表示 ==========
@@ -374,10 +307,11 @@ function renderTaskList() {
   const list = document.getElementById('task-list');
   const empty = document.getElementById('task-empty');
   list.innerHTML = '';
-  if (state.tasks.length === 0) { empty.classList.remove('hidden'); return; }
+  const dayTasks = selectedTasks();
+  if (dayTasks.length === 0) { empty.classList.remove('hidden'); return; }
   empty.classList.add('hidden');
 
-  const sorted = [...state.tasks].sort((a,b) => a.startMin - b.startMin);
+  const sorted = [...dayTasks].sort((a,b) => a.startMin - b.startMin);
   sorted.forEach(task => {
     const cat = state.categories.find(c => c.id === task.categoryId);
     const div = document.createElement('div');
@@ -398,49 +332,6 @@ function renderTaskList() {
       state.tasks = state.tasks.filter(t => t.id !== btn.dataset.del);
       saveState(); renderAll();
     });
-  });
-}
-
-// ========== デイリー統計 ==========
-function renderStats() {
-  const area = document.getElementById('stats-area');
-  const empty = document.getElementById('stats-empty');
-  area.innerHTML = '';
-
-  if (state.tasks.length === 0) { empty.classList.remove('hidden'); return; }
-  empty.classList.add('hidden');
-
-  // カテゴリーごとの合計分数
-  const totals = {};
-  state.tasks.forEach(task => {
-    const dur = task.endMin > task.startMin ? task.endMin - task.startMin : task.endMin + 1440 - task.startMin;
-    totals[task.categoryId] = (totals[task.categoryId] || 0) + dur;
-  });
-
-  const maxMin = Math.max(...Object.values(totals), 1);
-
-  state.categories.forEach(cat => {
-    const min = totals[cat.id] || 0;
-    if (min === 0) return;
-    const h = Math.floor(min / 60);
-    const m = min % 60;
-    const pct = (min / 1440 * 100).toFixed(1);
-
-    const row = document.createElement('div');
-    row.className = 'flex flex-col gap-1';
-    row.innerHTML = `
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-1.5">
-          <span class="cat-dot" style="background:${cat.color}"></span>
-          <span class="text-xs font-semibold text-gray-700">${cat.name}</span>
-        </div>
-        <span class="text-xs text-gray-400">${h}時間${m > 0 ? m + '分' : ''} (${pct}%)</span>
-      </div>
-      <div class="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
-        <div class="stat-bar" style="width:${min/maxMin*100}%;background:${cat.color}"></div>
-      </div>
-    `;
-    area.appendChild(row);
   });
 }
 
@@ -482,7 +373,7 @@ function scheduleNotifications() {
   const now = new Date();
   const nowMin = now.getHours() * 60 + now.getMinutes();
 
-  state.tasks.forEach(task => {
+  state.tasks.filter(task => task.date === localDateKey(now)).forEach(task => {
     const diffMin = task.startMin - nowMin;
     if (diffMin > 0 && diffMin <= 60) {
       const ms = (diffMin - 1) * 60 * 1000; // 1分前に通知
@@ -501,9 +392,37 @@ function scheduleNotifications() {
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
-// タスク追加
-document.getElementById('btn-add-task').addEventListener('click', () => openModal('modal-task'));
-document.getElementById('btn-modal-cancel').addEventListener('click', () => closeModal('modal-task'));
+// タスク追加・編集
+let editingTaskId = null;
+
+function openTaskModal(taskId = null) {
+  editingTaskId = taskId;
+  const task = taskId ? state.tasks.find(t => t.id === taskId) : null;
+  document.getElementById('task-modal-title').textContent = task ? '予定を編集' : 'タスクを追加';
+  document.getElementById('btn-modal-save').textContent = task ? '更新' : '追加';
+  document.getElementById('inp-task-name').value = task ? task.name : '';
+  document.getElementById('inp-start').value = task ? minutesToTime(task.startMin) : '';
+  document.getElementById('inp-end').value = task ? minutesToTime(task.endMin) : '';
+  if (task) document.getElementById('inp-category').value = task.categoryId;
+  document.getElementById('modal-task-err').classList.add('hidden');
+  openModal('modal-task');
+}
+
+function timeRanges(start, end) {
+  return end > start ? [[start, end]] : [[start, 1440], [0, end]];
+}
+
+function overlapsExisting(start, end, ignoredTaskId) {
+  const ranges = timeRanges(start, end);
+  return state.tasks.some(task => {
+    if (task.id === ignoredTaskId || task.date !== selectedDate) return false;
+    return ranges.some(a => timeRanges(task.startMin, task.endMin)
+      .some(b => a[0] < b[1] && b[0] < a[1]));
+  });
+}
+
+document.getElementById('btn-add-task').addEventListener('click', () => openTaskModal());
+document.getElementById('btn-modal-cancel').addEventListener('click', () => { editingTaskId = null; closeModal('modal-task'); });
 document.getElementById('btn-modal-save').addEventListener('click', () => {
   const name = document.getElementById('inp-task-name').value.trim();
   const start = document.getElementById('inp-start').value;
@@ -514,11 +433,24 @@ document.getElementById('btn-modal-save').addEventListener('click', () => {
   if (!name || !start || !end) {
     err.textContent = '全ての項目を入力してください'; err.classList.remove('hidden'); return;
   }
+  const startMin = timeToMinutes(start);
+  const endMin = timeToMinutes(end);
+  if (startMin === endMin) {
+    err.textContent = '開始時刻と終了時刻は異なる時刻にしてください'; err.classList.remove('hidden'); return;
+  }
+  if (overlapsExisting(startMin, endMin, editingTaskId)) {
+    err.textContent = 'この時間は別の予定と重なっています'; err.classList.remove('hidden'); return;
+  }
   err.classList.add('hidden');
 
-  state.tasks.push({ id: genId(), name, startMin: timeToMinutes(start), endMin: timeToMinutes(end), categoryId: catId });
+  if (editingTaskId) {
+    const task = state.tasks.find(t => t.id === editingTaskId);
+    if (task) Object.assign(task, { name, startMin, endMin, categoryId: catId, date: selectedDate });
+  } else {
+    state.tasks.push({ id: genId(), name, startMin, endMin, categoryId: catId, date: selectedDate });
+  }
   saveState(); closeModal('modal-task'); renderAll();
-  document.getElementById('inp-task-name').value = '';
+  editingTaskId = null;
   scheduleNotifications();
 });
 
@@ -541,22 +473,67 @@ document.querySelectorAll('.modal-bg').forEach(el => {
 
 // ========== 全体描画 ==========
 function renderAll() {
+  showSelectedDate();
   renderChart();
   renderTaskList();
-  renderStats();
   renderCategories();
 }
 
-// ========== 日付表示 ==========
-function showToday() {
-  const d = new Date();
-  const days = ['日','月','火','水','木','金','土'];
-  document.getElementById('today-date').textContent =
-    `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${days[d.getDay()]}）`;
+// ========== 画面再表示時に最新状態へ更新 ==========
+let lastRefreshAt = 0;
+function refreshLatestState() {
+  const now = Date.now();
+  if (now - lastRefreshAt < 100) return;
+  lastRefreshAt = now;
+
+  const today = localDateKey();
+  // 「今日」を見ている間に日付が変わった場合は、新しい今日へ移動
+  if (selectedDate === lastKnownToday) selectedDate = today;
+  lastKnownToday = today;
+  state = loadState();
+  renderAll();
+  scheduleNotifications();
 }
 
+window.addEventListener('pageshow', refreshLatestState);
+window.addEventListener('focus', refreshLatestState);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') refreshLatestState();
+});
+// 別タブで予定が更新された場合も即時反映
+window.addEventListener('storage', e => {
+  if (e.key === STORAGE_KEY) refreshLatestState();
+});
+
+// ========== 日付切り替え・表示 ==========
+function dateFromKey(key) {
+  const [year, month, day] = key.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function showSelectedDate() {
+  const d = dateFromKey(selectedDate);
+  const days = ['日','月','火','水','木','金','土'];
+  const suffix = selectedDate === localDateKey() ? '・今日' : '';
+  document.getElementById('today-date').textContent =
+    `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${days[d.getDay()]}）${suffix}`;
+}
+
+function moveSelectedDate(days) {
+  const date = dateFromKey(selectedDate);
+  date.setDate(date.getDate() + days);
+  selectedDate = localDateKey(date);
+  renderAll();
+}
+
+document.getElementById('btn-prev-day').addEventListener('click', () => moveSelectedDate(-1));
+document.getElementById('btn-next-day').addEventListener('click', () => moveSelectedDate(1));
+document.getElementById('btn-today').addEventListener('click', () => {
+  selectedDate = localDateKey();
+  renderAll();
+});
+
 // ========== 初期化 ==========
-showToday();
 renderAll();
 requestNotificationPermission();
 scheduleNotifications();

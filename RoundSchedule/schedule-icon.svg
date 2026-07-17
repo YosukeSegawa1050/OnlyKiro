@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="104" fill="#2563eb"/>
+  <circle cx="256" cy="256" r="170" fill="#ffffff"/>
+  <path d="M256 256V86A170 170 0 0 1 403.2 341Z" fill="#60a5fa"/>
+  <path d="M256 256 403.2 341A170 170 0 0 1 108.8 341Z" fill="#f59e0b"/>
+  <path d="M256 256 108.8 341A170 170 0 0 1 256 86Z" fill="#34d399"/>
+  <circle cx="256" cy="256" r="92" fill="#ffffff"/>
+  <text x="256" y="277" text-anchor="middle" font-family="Arial, sans-serif" font-size="64" font-weight="700" fill="#1e3a8a">24H</text>
+</svg>

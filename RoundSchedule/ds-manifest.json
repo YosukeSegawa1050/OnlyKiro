@@ -10,8 +10,8 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='38' fill='%232563eb'/><text x='96' y='125' font-size='90' text-anchor='middle' fill='white'>📅</text></svg>",
-      "sizes": "192x192",
+      "src": "./schedule-icon.svg",
+      "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     }
