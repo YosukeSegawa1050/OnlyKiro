@@ -193,6 +193,13 @@
 
     <!-- 単語カード: フラッシュカード表示 -->
     <div id="flashcard-area" class="hidden w-full flex flex-col items-center gap-4">
+      <label class="flex items-center gap-2 self-end text-xs text-gray-500 cursor-pointer select-none">
+        <span>表裏を入れ替える</span>
+        <input id="fc-reverse-toggle" type="checkbox" class="sr-only peer"/>
+        <span class="relative w-9 h-5 rounded-full bg-gray-200 peer-checked:bg-blue-500 transition-colors
+                     after:absolute after:top-0.5 after:left-0.5 after:w-4 after:h-4 after:rounded-full after:bg-white after:shadow-sm
+                     after:transition-transform peer-checked:after:translate-x-4"></span>
+      </label>
       <div id="flashcard-container" class="relative w-full max-w-sm h-64 flex items-center justify-center">
         <div id="flashcard" class="absolute inset-0 bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-xl border border-gray-100 flex flex-col items-center justify-center p-6 cursor-grab select-none transition-transform duration-300"
              style="touch-action: pan-y;">
@@ -728,6 +735,7 @@ let testState = {
   fcType: null,   // flashcard type
   fcRevealed: false,
   fcAnimating: false,
+  fcReversed: false,
 };
 
 // 記述式の設定
@@ -757,6 +765,46 @@ const TEST_TYPES = {
     getAnswer: w => w.meaning,
   },
 };
+
+const SPLITTABLE_MEANINGS = new Set([
+  'いいえ、ではない、しない',
+  'さん、君',
+  '全部、すべて',
+  '学ぶ、勉強する',
+  'とても、たいへん',
+  '本当に、実に',
+  'どの、どれ',
+  '学部、学科',
+  '家、家族',
+  'いる、ある/持っている',
+  'いくつ、いくら',
+  'お姉さん、姉',
+  'ただ、だけ、しかない',
+  'いない、ない/持っていない',
+  'いくら、どれぐらい',
+  '用事、事柄',
+  '商店、店',
+  'コンピューター、パソコン',
+  'お兄さん、兄',
+  'にある、にいる',
+  'フロア、階',
+  '今、現在',
+  '半、半分',
+  '足りない、欠ける',
+  '行く、歩く',
+  '寝る、眠る',
+  '日、日にち',
+  '知る、分かる',
+  '帰る、戻る',
+  '春節、旧正月',
+]);
+
+function getAcceptedAnswers(correctAnswer) {
+  if (testState.type !== 'hanzi-to-meaning' || !SPLITTABLE_MEANINGS.has(correctAnswer)) {
+    return [correctAnswer];
+  }
+  return correctAnswer.split('、').map(answer => answer.trim());
+}
 
 // 単語カードの設定
 const FC_TYPES = {
@@ -869,7 +917,8 @@ function checkAnswer() {
 
   const cfg = TEST_TYPES[testState.type];
   const correctAnswer = cfg.getAnswer(testState.current);
-  const isCorrect = userAnswer === correctAnswer;
+  const acceptedAnswers = getAcceptedAnswers(correctAnswer);
+  const isCorrect = acceptedAnswers.includes(userAnswer);
 
   if (isCorrect) {
     testState.correct++;
@@ -893,6 +942,13 @@ function checkAnswer() {
 
   showTestPanels(['test-question-area', 'test-result-area', 'test-score']);
   updateTestScore();
+  elements.answerInput.blur();
+  setTimeout(() => {
+    window.scrollTo({
+      top: document.documentElement.scrollHeight,
+      behavior: 'smooth',
+    });
+  }, 100);
 }
 
 // --- 単語カード（フラッシュカード） ---
@@ -931,13 +987,21 @@ function showNextFlashcard() {
 function renderFlashcard() {
   const cfg = FC_TYPES[testState.fcType];
   const flashcard = $('flashcard');
+  const frontLabel = testState.fcReversed ? cfg.backLabel : cfg.frontLabel;
+  const backLabel = testState.fcReversed ? cfg.frontLabel : cfg.backLabel;
+  const frontText = testState.fcReversed
+    ? cfg.getBack(testState.current)
+    : cfg.getFront(testState.current);
+  const backText = testState.fcReversed
+    ? cfg.getFront(testState.current)
+    : cfg.getBack(testState.current);
 
   flashcard.style.transform = '';
   flashcard.style.opacity = '1';
-  $('fc-front-label').textContent = cfg.frontLabel;
-  $('fc-front-text').textContent = cfg.getFront(testState.current);
-  $('fc-back-label').textContent = cfg.backLabel;
-  $('fc-back-text').textContent = cfg.getBack(testState.current);
+  $('fc-front-label').textContent = frontLabel;
+  $('fc-front-text').textContent = frontText;
+  $('fc-back-label').textContent = backLabel;
+  $('fc-back-text').textContent = backText;
   setHidden($('fc-back'), true);
   setHidden($('fc-buttons'), true);
   setHidden($('fc-tap-hint'), false);
@@ -1099,6 +1163,14 @@ document.querySelectorAll('.test-type-btn').forEach(btn => {
 // 単語カード: サブモード選択ボタン
 document.querySelectorAll('.fc-type-btn').forEach(btn => {
   btn.addEventListener('click', () => startFlashcard(btn.dataset.fcType));
+});
+
+$('fc-reverse-toggle').addEventListener('change', e => {
+  testState.fcReversed = e.target.checked;
+  if (testState.current && testState.mode === 'flashcard') {
+    testState.fcRevealed = false;
+    renderFlashcard();
+  }
 });
 
 // Enterキーで回答
