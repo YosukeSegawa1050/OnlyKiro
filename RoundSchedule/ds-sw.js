@@ -1,5 +1,5 @@
-const CACHE_NAME = 'daily-schedule-v1';
-const ASSETS = ['./DailySchedule.html', './ds-manifest.json'];
+const CACHE_NAME = 'daily-schedule-v2';
+const ASSETS = ['./RoundSchedule.html', './ds-manifest.json'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(ASSETS)));
@@ -19,6 +19,6 @@ self.addEventListener('fetch', e => {
     fetch(e.request).then(res => {
       if (res.ok) { const c = res.clone(); caches.open(CACHE_NAME).then(cache => cache.put(e.request, c)); }
       return res;
-    }).catch(() => caches.match(e.request).then(r => r || caches.match('./DailySchedule.html')))
+    }).catch(() => caches.match(e.request).then(r => r || caches.match('./RoundSchedule.html')))
   );
 });

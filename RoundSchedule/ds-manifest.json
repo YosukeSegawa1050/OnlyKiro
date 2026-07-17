@@ -2,7 +2,7 @@
   "name": "Daily Schedule",
   "short_name": "Schedule",
   "description": "24時間円グラフでスケジュール管理",
-  "start_url": "./DailySchedule.html",
+  "start_url": "./RoundSchedule.html",
   "scope": "./",
   "display": "standalone",
   "background_color": "#ffffff",
