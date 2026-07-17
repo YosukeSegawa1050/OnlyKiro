@@ -1213,6 +1213,7 @@ function checkAnswer() {
   const acceptedAnswers = getAcceptedAnswers(correctAnswer);
   const isCorrect = acceptedAnswers.includes(userAnswer);
   recordWordAttempt(testState.current, isCorrect, `writing:${testState.type}`);
+  showAnswerFeedback(isCorrect);
 
   if (isCorrect) {
     testState.correct++;
@@ -1546,6 +1547,7 @@ let dungeonState = null;
 let tripleTimerId = null;
 let fakeTimerId = null;
 let listeningState = null;
+let answerFeedbackTimer = null;
 
 function stopGameTimers() {
   clearInterval(tripleTimerId);
@@ -1583,6 +1585,17 @@ function lockGameOptions() {
   document.querySelectorAll('#game-play-area [data-option-base-class]').forEach(button => {
     button.disabled = true;
   });
+}
+
+function showAnswerFeedback(isCorrect) {
+  clearTimeout(answerFeedbackTimer);
+  $('answer-feedback')?.remove();
+  const feedback = document.createElement('div');
+  feedback.id = 'answer-feedback';
+  feedback.className = `fixed z-50 inset-0 flex items-center justify-center pointer-events-none text-8xl font-black drop-shadow-lg ${isCorrect ? 'text-green-500' : 'text-red-500'}`;
+  feedback.textContent = isCorrect ? '〇' : '×';
+  document.body.appendChild(feedback);
+  answerFeedbackTimer = setTimeout(() => feedback.remove(), 550);
 }
 
 function enterGameMode() {
@@ -1790,11 +1803,13 @@ function showFakeQuestion() {
     button.addEventListener('click', () => answerFake(option.fake, button));
     $('fake-options').appendChild(button);
   });
+  clearOptionFeedback();
 }
 
 function answerFake(isFake, button) {
   if (fakeState.finished) return;
   lockGameOptions();
+  showAnswerFeedback(isFake);
   const word = fakeState.current.word;
   recordWordAttempt(word, isFake, 'fake');
   if (isFake) { fakeState.correct++; button.classList.add('bg-green-100', 'border-green-400'); }
@@ -1837,10 +1852,12 @@ function showListeningQuestion() {
     'p-3 rounded-xl border border-gray-200 hover:bg-cyan-50 hover:border-cyan-400 text-left font-bold',
   );
   setTimeout(() => speak(word.hanzi), 250);
+  clearOptionFeedback();
 }
 
 function answerListening(correct, button) {
   lockGameOptions();
+  showAnswerFeedback(correct);
   recordWordAttempt(listeningState.current, correct, 'listening');
   if (correct) { listeningState.correct++; button.classList.add('bg-green-100', 'border-green-400'); }
   else button.classList.add('bg-red-100', 'border-red-400');
@@ -1851,6 +1868,7 @@ function clearOptionFeedback() {
   document.querySelectorAll('#game-play-area [data-option-base-class]').forEach(button => {
     button.className = button.dataset.optionBaseClass;
     button.disabled = false;
+    button.blur();
   });
 }
 
@@ -1906,11 +1924,13 @@ function showDungeonTurn(message = '中国語の意味を選んで攻撃！') {
     (choice, button) => answerDungeon(choice === word.meaning, button),
     'p-3 rounded-xl border border-gray-200 hover:bg-emerald-50 hover:border-emerald-400 text-left font-bold',
   );
+  clearOptionFeedback();
 }
 
 function answerDungeon(correct) {
   const state = dungeonState;
   lockGameOptions();
+  showAnswerFeedback(correct);
   recordWordAttempt(state.current, correct, 'dungeon');
   if (correct) {
     state.combo++;
