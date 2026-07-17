@@ -206,7 +206,7 @@
           </div>
         </div>
       </div>
-      <p id="fc-tap-hint" class="text-xs text-gray-400">タップで答えを表示 / スワイプで次へ</p>
+      <p id="fc-tap-hint" class="text-xs text-gray-400">タップ・Enterで答えを表示 / スワイプ・← →で判定</p>
       <div id="fc-buttons" class="hidden flex items-center gap-6 mt-2">
         <button id="btn-fc-wrong" class="w-14 h-14 rounded-full bg-red-100 hover:bg-red-200 text-red-500 text-2xl font-bold flex items-center justify-center transition active:scale-90 shadow">✕</button>
         <button id="btn-fc-undo" class="hidden w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 text-lg font-bold flex items-center justify-center transition active:scale-90 shadow">↩</button>
@@ -294,20 +294,48 @@ async function fetchPresetWords() {
     return data.words || [];
   } catch (e) {
     console.warn('words.json の読み込みに失敗（オフラインキャッシュも無し）:', e);
-    return [];
+    return null;
   }
 }
 
 // 全単語を統合（プリセット + ユーザー追加）
 let words = [];
+let presetWords = [];
+let isRefreshingWords = false;
 let currentView = 'lessons'; // 'lessons' | 'words'
 let currentLesson = null;    // 表示中の課名（null=一覧）
 
 async function initWords() {
-  const presetWords = await fetchPresetWords();
-  const userWords = loadUserWords();
-  words = [...userWords, ...presetWords];
+  presetWords = await fetchPresetWords() || [];
+  words = [...loadUserWords(), ...presetWords];
   renderLessonList();
+}
+
+async function refreshWords() {
+  if (isRefreshingWords) return;
+  isRefreshingWords = true;
+
+  try {
+    const latestPresetWords = await fetchPresetWords();
+    if (!latestPresetWords) return;
+
+    const hasChanges = JSON.stringify(latestPresetWords) !== JSON.stringify(presetWords);
+    if (!hasChanges) return;
+
+    presetWords = latestPresetWords;
+    words = [...loadUserWords(), ...presetWords];
+
+    const searchText = elements.searchInput.value.trim();
+    if (searchText && !searchText.startsWith('第')) {
+      renderSearchResults(searchText);
+    } else if (currentView === 'words' && currentLesson) {
+      currentLesson === USER_LESSON_KEY ? openUserWords() : openLesson(currentLesson);
+    } else {
+      renderLessonList();
+    }
+  } finally {
+    isRefreshingWords = false;
+  }
 }
 
 // ===== レッスン一覧表示 =====
@@ -687,6 +715,7 @@ let testState = {
   type: null,
   fcType: null,   // flashcard type
   fcRevealed: false,
+  fcAnimating: false,
 };
 
 // 記述式の設定
@@ -744,12 +773,20 @@ const testPanelIds = [
   'test-score', 'test-question-area', 'test-input-area',
   'test-result-area', 'flashcard-area', 'test-empty', 'test-complete',
 ];
+const testPanels = new Map(testPanelIds.map(id => [id, $(id)]));
 
 function showTestPanels(visible) {
-  testPanelIds.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) setHidden(el, !visible.includes(id));
+  const visiblePanels = new Set(visible);
+  testPanels.forEach((panel, id) => {
+    setHidden(panel, !visiblePanels.has(id));
   });
+}
+
+function resetTestProgress() {
+  testState.pool = shuffleArray([...words]);
+  testState.current = null;
+  testState.correct = 0;
+  testState.wrong = 0;
 }
 
 function enterTestMode() {
@@ -790,9 +827,7 @@ function enterWritingMode() {
 
 function startTestWithType(type) {
   testState.type = type;
-  testState.pool = shuffleArray([...words]);
-  testState.correct = 0;
-  testState.wrong = 0;
+  resetTestProgress();
   showTestPanels(['test-score']);
   updateTestScore();
   showNextQuestion();
@@ -858,10 +893,9 @@ function enterFlashcardMode() {
 
 function startFlashcard(fcType) {
   testState.fcType = fcType;
-  testState.pool = shuffleArray([...words]);
-  testState.correct = 0;
-  testState.wrong = 0;
+  resetTestProgress();
   testState.fcRevealed = false;
+  testState.fcAnimating = false;
   fcHistory = [];
   showTestPanels(['test-score', 'flashcard-area']);
   updateFcUndoBtn();
@@ -876,22 +910,25 @@ function showNextFlashcard() {
   }
   testState.current = testState.pool.pop();
   testState.fcRevealed = false;
-  const cfg = FC_TYPES[testState.fcType];
+  testState.fcAnimating = false;
+  renderFlashcard();
+  updateFcUndoBtn();
+  updateTestScore();
+}
 
+function renderFlashcard() {
+  const cfg = FC_TYPES[testState.fcType];
   const flashcard = $('flashcard');
+
   flashcard.style.transform = '';
   flashcard.style.opacity = '1';
-
   $('fc-front-label').textContent = cfg.frontLabel;
   $('fc-front-text').textContent = cfg.getFront(testState.current);
   $('fc-back-label').textContent = cfg.backLabel;
   $('fc-back-text').textContent = cfg.getBack(testState.current);
-
   setHidden($('fc-back'), true);
   setHidden($('fc-buttons'), true);
   setHidden($('fc-tap-hint'), false);
-  updateFcUndoBtn();
-  updateTestScore();
 }
 
 function revealFlashcard() {
@@ -903,6 +940,9 @@ function revealFlashcard() {
 }
 
 function dismissFlashcard(direction) {
+  if (testState.fcAnimating || !testState.current) return;
+  testState.fcAnimating = true;
+
   // direction: 'right' = correct, 'left' = wrong
   if (direction === 'right') testState.correct++;
   else testState.wrong++;
@@ -924,6 +964,7 @@ function dismissFlashcard(direction) {
     flashcard.style.opacity = '1';
     setTimeout(() => {
       flashcard.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+      testState.fcAnimating = false;
       showNextFlashcard();
     }, 50);
   }, 300);
@@ -946,21 +987,9 @@ function undoFlashcard() {
   // 前のカードを表示
   testState.current = last.word;
   testState.fcRevealed = false;
-  const cfg = FC_TYPES[testState.fcType];
-
   const flashcard = $('flashcard');
   flashcard.style.transition = 'none';
-  flashcard.style.transform = '';
-  flashcard.style.opacity = '1';
-
-  $('fc-front-label').textContent = cfg.frontLabel;
-  $('fc-front-text').textContent = cfg.getFront(testState.current);
-  $('fc-back-label').textContent = cfg.backLabel;
-  $('fc-back-text').textContent = cfg.getBack(testState.current);
-
-  setHidden($('fc-back'), true);
-  setHidden($('fc-buttons'), true);
-  setHidden($('fc-tap-hint'), false);
+  renderFlashcard();
   updateFcUndoBtn();
   updateTestScore();
 
@@ -1073,14 +1102,58 @@ elements.answerInput.addEventListener('keydown', e => {
   }
 });
 
+// 単語カード: キーボード操作
+document.addEventListener('keydown', e => {
+  const isFlashcardVisible = testState.active &&
+    testState.mode === 'flashcard' &&
+    !$('flashcard-area').classList.contains('hidden');
+
+  if (!isFlashcardVisible || e.repeat) return;
+
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    revealFlashcard();
+  } else if (e.key === 'ArrowRight') {
+    e.preventDefault();
+    dismissFlashcard('right');
+  } else if (e.key === 'ArrowLeft') {
+    e.preventDefault();
+    dismissFlashcard('left');
+  }
+});
+
 // ===== 初期化 =====
-initWords();
+const wordsReady = initWords();
 
 // ===== Service Worker 登録 =====
+let serviceWorkerRegistration = null;
+let lastUpdateCheck = 0;
+
+async function checkForAppUpdates() {
+  const now = Date.now();
+  if (now - lastUpdateCheck < 5000) return;
+  lastUpdateCheck = now;
+
+  await wordsReady;
+  await refreshWords();
+  if (serviceWorkerRegistration) {
+    serviceWorkerRegistration.update().catch(err => {
+      console.warn('Service Workerの更新確認に失敗:', err);
+    });
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') checkForAppUpdates();
+});
+window.addEventListener('focus', checkForAppUpdates);
+window.addEventListener('pageshow', checkForAppUpdates);
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./service-worker.js', { updateViaCache: 'none' })
       .then(reg => {
+        serviceWorkerRegistration = reg;
         console.log('SW registered:', reg.scope);
         // 新しいSWがあれば即座にアクティベート
         reg.addEventListener('updatefound', () => {
