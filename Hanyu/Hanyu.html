@@ -17,6 +17,13 @@
   body { background: #f8fafc; }
   body[data-theme="sunset"] { background: #fff7ed; }
   body[data-theme="night"] { background: #e2e8f0; }
+  /* タッチ端末ではタップ後に :hover が残るため、選択肢の hover 色を無効化する */
+  @media (hover: none) {
+    #game-play-area [data-option-base-class]:hover {
+      background-color: transparent !important;
+      border-color: #e5e7eb !important;
+    }
+  }
   .card-enter { animation: cardIn 0.3s ease forwards; }
   @keyframes cardIn {
     from { opacity: 0; transform: translateY(12px); }
