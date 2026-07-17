@@ -38,6 +38,10 @@
       <div class="flex gap-3 text-right text-sm"><span><span class="block text-[10px] text-gray-400">EXP</span><b id="game-xp" class="text-indigo-600">0</b></span><span><span class="block text-[10px] text-gray-400">COIN</span><b id="game-coins" class="text-amber-500">0</b></span></div>
     </div>
     <div id="wanted-word-list" class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
+    <div class="mt-4 pt-3 border-t border-indigo-100">
+      <p class="text-xs font-bold text-indigo-500">📊 苦手単語</p>
+      <div id="weak-word-list" class="mt-2 flex flex-wrap gap-2"></div>
+    </div>
     <div class="mt-4 flex flex-wrap items-center justify-between gap-3"><p id="daily-bonus-status" class="text-xs text-gray-500"></p><button id="btn-claim-daily-bonus" class="hidden px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-white text-xs font-bold rounded-lg shadow transition active:scale-95">本日のボーナスを受け取る</button></div>
   </div>
 </section>
@@ -269,7 +273,6 @@
       <button data-game="triple" class="game-select-btn text-left p-5 rounded-2xl border-2 border-indigo-100 hover:border-indigo-400 bg-indigo-50 transition"><b class="block text-indigo-700 text-lg">🃏 トリプル神経衰弱</b><span class="mt-1 block text-xs text-gray-500">中国語・日本語・ピンインを3枚でそろえる</span></button>
       <button data-game="fake" class="game-select-btn text-left p-5 rounded-2xl border-2 border-rose-100 hover:border-rose-400 bg-rose-50 transition"><b class="block text-rose-700 text-lg">🕵️ 偽物を捕まえろ</b><span class="mt-1 block text-xs text-gray-500">単語情報にまぎれた偽物を見破る</span></button>
       <button data-game="dungeon" class="game-select-btn text-left p-5 rounded-2xl border-2 border-emerald-100 hover:border-emerald-400 bg-emerald-50 transition"><b class="block text-emerald-700 text-lg">⚔️ 単語ダンジョン</b><span class="mt-1 block text-xs text-gray-500">単語問題でモンスターを倒す</span></button>
-      <button data-game="situation" class="game-select-btn text-left p-5 rounded-2xl border-2 border-sky-100 hover:border-sky-400 bg-sky-50 transition"><b class="block text-sky-700 text-lg">💬 シチュエーション会話</b><span class="mt-1 block text-xs text-gray-500">場面に合う単語を選ぶ</span></button>
     </div>
     <div id="game-play-area" class="hidden"></div>
   </div>
@@ -410,6 +413,19 @@ function renderGameDashboard() {
       </div>`;
   }).join('');
 
+  const weakWords = [...words]
+    .map(word => ({ word, stats: gameState.stats[getWordId(word)] || {} }))
+    .filter(({ stats }) => (stats.correct || 0) + (stats.wrong || 0) > 0)
+    .sort((a, b) => {
+      const aScore = (a.stats.wrong || 0) * 2 - (a.stats.correct || 0);
+      const bScore = (b.stats.wrong || 0) * 2 - (b.stats.correct || 0);
+      return bScore - aScore;
+    })
+    .slice(0, 3);
+  $('weak-word-list').innerHTML = weakWords.length
+    ? weakWords.map(({ word, stats }) => `<span class="bg-white/80 rounded-full px-2.5 py-1 text-xs text-gray-600"><b>${escapeHtml(word.hanzi)}</b>　正 ${stats.correct || 0} / 誤 ${stats.wrong || 0}</span>`).join('')
+    : '<span class="text-xs text-gray-400">ゲームをプレイすると苦手単語を分析します</span>';
+
   const playedToday = gameState.lastPlayDate === getLocalDate();
   const claimedToday = gameState.lastBonusDate === getLocalDate();
   $('daily-bonus-status').textContent = claimedToday
@@ -451,6 +467,7 @@ function recordWordAttempt(word, isCorrect, questionType) {
     }
   }
   saveGameState();
+  renderGameDashboard();
   return { addedWantedFormat, awardedWantedBonus };
 }
 
@@ -474,6 +491,7 @@ function revertWordAttempt(word, isCorrect, questionType, attempt) {
     }
   }
   saveGameState();
+  renderGameDashboard();
 }
 
 function recordCompletedGame() {
@@ -1398,7 +1416,6 @@ document.querySelectorAll('.game-select-btn').forEach(btn => {
     if (btn.dataset.game === 'triple') showTripleDifficultySelect();
     if (btn.dataset.game === 'fake') showFakeModeSelect();
     if (btn.dataset.game === 'dungeon') startDungeonGame();
-    if (btn.dataset.game === 'situation') startSituationGame();
   });
 });
 
@@ -1469,7 +1486,6 @@ let activeGame = null;
 let tripleState = null;
 let fakeState = null;
 let dungeonState = null;
-let situationState = null;
 let tripleTimerId = null;
 let fakeTimerId = null;
 
@@ -1687,17 +1703,41 @@ function clearOptionFeedback() {
 
 function startDungeonGame() {
   activeGame = 'dungeon';
-  dungeonState = { playerHp: 30, enemyHp: 30, combo: 0, stage: 1, current: null };
+  dungeonState = { playerHp: 30, enemyHp: 24, combo: 0, stage: 1, current: null };
   showDungeonTurn();
+}
+
+function getDungeonEnemy(stage) {
+  return [
+    { name: '単語スライム', icon: '🟢', hp: 24 },
+    { name: '発音ウルフ', icon: '🐺', hp: 36 },
+    { name: '語彙ドラゴン', icon: '🐉', hp: 50 },
+  ][stage - 1];
 }
 
 function showDungeonTurn(message = '中国語の意味を選んで攻撃！') {
   clearOptionFeedback();
   const state = dungeonState;
   if (state.enemyHp <= 0 || state.playerHp <= 0) {
-    const won = state.enemyHp <= 0;
-    if (won) recordCompletedGame();
-    $('game-play-area').innerHTML = `<div class="text-center py-10"><p class="text-3xl font-bold ${won ? 'text-emerald-600' : 'text-red-500'}">${won ? '🏆 ステージクリア！' : '💀 敗北…'}</p><p class="mt-3 text-gray-600">${won ? '経験値とコインを獲得しました。' : 'もう一度挑戦しよう。'}</p><button id="btn-game-back" class="mt-5 px-5 py-2 bg-gray-100 rounded-lg font-bold">ゲーム一覧へ</button></div>`;
+    if (state.playerHp <= 0) {
+      $('game-play-area').innerHTML = '<div class="text-center py-10"><p class="text-3xl font-bold text-red-500">💀 敗北…</p><p class="mt-3 text-gray-600">もう一度挑戦しよう。</p><button id="btn-game-back" class="mt-5 px-5 py-2 bg-gray-100 rounded-lg font-bold">ゲーム一覧へ</button></div>';
+      $('btn-game-back').addEventListener('click', enterGameMode);
+      return;
+    }
+    if (state.stage < 3) {
+      state.stage++;
+      const nextEnemy = getDungeonEnemy(state.stage);
+      state.enemyHp = nextEnemy.hp;
+      state.playerHp = Math.min(30, state.playerHp + 8);
+      state.combo = 0;
+      return showDungeonTurn(`✨ ステージ ${state.stage}！ HPを8回復`);
+    }
+    recordCompletedGame();
+    gameState.coins += 10;
+    gameState.xp += 20;
+    saveGameState();
+    renderGameDashboard();
+    $('game-play-area').innerHTML = '<div class="text-center py-10"><p class="text-3xl font-bold text-emerald-600">🏆 ダンジョン制覇！</p><p class="mt-3 text-gray-600">ボス撃破報酬：10コイン・20 EXP</p><button id="btn-game-back" class="mt-5 px-5 py-2 bg-gray-100 rounded-lg font-bold">ゲーム一覧へ</button></div>';
     $('btn-game-back').addEventListener('click', enterGameMode);
     return;
   }
@@ -1705,7 +1745,8 @@ function showDungeonTurn(message = '中国語の意味を選んで攻撃！') {
   state.current = word;
   const area = $('game-play-area');
   setHidden($('game-select'), true); setHidden(area, false);
-  area.innerHTML = `<div class="flex justify-between text-sm font-bold mb-4"><span class="text-blue-600">あなた HP ${state.playerHp}</span><span class="text-emerald-600">👾 HP ${state.enemyHp}</span></div><div class="rounded-2xl bg-emerald-50 p-5 text-center"><p class="text-xs text-gray-500">${escapeHtml(message)}</p><div class="mt-3 text-3xl font-black text-gray-800">${escapeHtml(word.hanzi)}</div><div class="text-sm text-blue-500">${escapeHtml(word.pinyin)}</div></div><div id="dungeon-options" class="mt-5 grid gap-2"></div><p class="mt-3 text-center text-xs text-amber-600">コンボ ${state.combo}</p>`;
+  const enemy = getDungeonEnemy(state.stage);
+  area.innerHTML = `<div class="flex justify-between text-sm font-bold mb-4"><span class="text-blue-600">あなた HP ${state.playerHp}</span><span class="text-emerald-600">${enemy.icon} ${enemy.name} HP ${state.enemyHp}</span></div><p class="mb-2 text-center text-xs font-bold text-emerald-600">ステージ ${state.stage} / 3${state.stage === 3 ? '　BOSS' : ''}</p><div class="rounded-2xl bg-emerald-50 p-5 text-center"><p class="text-xs text-gray-500">${escapeHtml(message)}</p><div class="mt-3 text-3xl font-black text-gray-800">${escapeHtml(word.hanzi)}</div><div class="text-sm text-blue-500">${escapeHtml(word.pinyin)}</div></div><div id="dungeon-options" class="mt-5 grid gap-2"></div><p class="mt-3 text-center text-xs text-amber-600">コンボ ${state.combo}</p>`;
   makeChoices(word.meaning, 'meaning').forEach(choice => { const button = document.createElement('button'); button.className = 'p-3 rounded-xl border border-gray-200 hover:bg-emerald-50 hover:border-emerald-400 text-left font-bold'; button.textContent = choice; button.addEventListener('click', () => answerDungeon(choice === word.meaning)); $('dungeon-options').appendChild(button); });
 }
 
@@ -1724,35 +1765,6 @@ function answerDungeon(correct) {
     state.playerHp = Math.max(0, state.playerHp - 7);
     showDungeonTurn('👾 敵の反撃！ 7ダメージ');
   }
-}
-
-function startSituationGame() {
-  activeGame = 'situation';
-  const pool = sampleWords(5);
-  situationState = { pool, total: pool.length, correct: 0, current: null };
-  showSituationQuestion();
-}
-
-function showSituationQuestion() {
-  clearOptionFeedback();
-  if (!situationState.pool.length) {
-    recordCompletedGame();
-    $('game-play-area').innerHTML = `<div class="text-center py-10"><p class="text-2xl font-bold text-sky-600">💬 会話クリア！</p><p class="mt-2 text-gray-600">${situationState.correct} / ${situationState.total} 問正解</p><button id="btn-game-back" class="mt-5 px-5 py-2 bg-gray-100 rounded-lg font-bold">ゲーム一覧へ</button></div>`;
-    $('btn-game-back').addEventListener('click', enterGameMode);
-    return;
-  }
-  const word = situationState.pool.pop();
-  situationState.current = word;
-  const area = $('game-play-area');
-  setHidden($('game-select'), true); setHidden(area, false);
-  area.innerHTML = `<p class="text-xs font-bold text-sky-500">💬 日常会話</p><div class="mt-2 rounded-2xl bg-sky-50 p-5"><p class="text-sm text-gray-500">相手に「${escapeHtml(word.meaning)}」と伝えたい。空欄に入る中国語は？</p><p class="mt-4 text-2xl font-bold text-gray-800">我想说「＿＿」。</p></div><div id="situation-options" class="mt-5 grid gap-2"></div>`;
-  makeChoices(word.hanzi, 'hanzi').forEach(choice => { const button = document.createElement('button'); button.className = 'p-3 rounded-xl border border-gray-200 hover:bg-sky-50 hover:border-sky-400 text-left font-bold'; button.textContent = choice; button.addEventListener('click', () => answerSituation(choice === word.hanzi)); $('situation-options').appendChild(button); });
-}
-
-function answerSituation(correct) {
-  recordWordAttempt(situationState.current, correct, 'situation');
-  if (correct) situationState.correct++;
-  setTimeout(showSituationQuestion, 450);
 }
 
 function setUpdateButtonState({ icon, title, loading = false }) {

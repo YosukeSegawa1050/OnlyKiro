@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'hanyu-v16';
+const CACHE_NAME = 'hanyu-v19';
 const ASSETS_TO_CACHE = [
   './',
   './Hanyu.html',
