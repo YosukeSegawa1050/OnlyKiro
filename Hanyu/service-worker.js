@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'hanyu-v1';
+const CACHE_NAME = 'hanyu-v2';
 const ASSETS_TO_CACHE = [
   './',
   './Hanyu.html',
@@ -29,30 +29,29 @@ self.addEventListener('activate', event => {
   );
 });
 
-// フェッチ時: キャッシュ優先（Cache First）戦略
-// Wi-Fiで一度取得すれば、以降はキャッシュから返す → 通信量ゼロ
+// フェッチ時: Network First 戦略
+// ネットワークが使えればそこから取得しキャッシュを更新、失敗時はキャッシュから返す
+// → 開発中も最新ファイルが反映される、オフラインでもキャッシュで動作する
 self.addEventListener('fetch', event => {
   event.respondWith(
-    caches.match(event.request).then(cachedResponse => {
-      if (cachedResponse) {
-        return cachedResponse;
+    fetch(event.request).then(networkResponse => {
+      // ネットワーク成功 → キャッシュを更新
+      if (event.request.method === 'GET' && event.request.url.startsWith(self.location.origin)) {
+        const responseClone = networkResponse.clone();
+        caches.open(CACHE_NAME).then(cache => {
+          cache.put(event.request, responseClone);
+        });
       }
-      // キャッシュに無い場合はネットワークから取得してキャッシュに保存
-      return fetch(event.request).then(networkResponse => {
-        // 同一オリジンのGETリクエストのみキャッシュ
-        if (event.request.method === 'GET' && event.request.url.startsWith(self.location.origin)) {
-          const responseClone = networkResponse.clone();
-          caches.open(CACHE_NAME).then(cache => {
-            cache.put(event.request, responseClone);
-          });
-        }
-        return networkResponse;
-      });
+      return networkResponse;
     }).catch(() => {
-      // オフラインでキャッシュも無い場合のフォールバック
-      if (event.request.destination === 'document') {
-        return caches.match('./Hanyu.html');
-      }
+      // ネットワーク失敗 → キャッシュから返す（オフライン対応）
+      return caches.match(event.request).then(cachedResponse => {
+        if (cachedResponse) return cachedResponse;
+        // ドキュメントリクエストならHTMLを返す
+        if (event.request.destination === 'document') {
+          return caches.match('./Hanyu.html');
+        }
+      });
     })
   );
 });
