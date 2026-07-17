@@ -33,31 +33,6 @@
 <!-- ===== 入力フォーム ===== -->
 <div class="max-w-2xl mx-auto bg-white rounded-2xl shadow-lg p-4 sm:p-6 mb-8">
 
-  <!-- AI自動入力セクション -->
-  <div class="mb-5 p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl border border-purple-100">
-    <label for="inp-japanese" class="text-xs font-semibold text-purple-600 block mb-1.5">🤖 日本語から自動入力</label>
-    <div class="flex flex-col sm:flex-row gap-2">
-      <input id="inp-japanese" type="text" placeholder="例：こんにちは、学校、食べる"
-             class="w-full sm:flex-1 border border-purple-200 rounded-lg px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent transition"/>
-      <button id="btn-ai"
-              class="w-full sm:w-auto px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg shadow transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
-        ✨ AI自動入力
-      </button>
-    </div>
-    <div id="ai-msg" class="mt-2 text-xs text-purple-500 hidden"></div>
-    <div id="ai-key-section" class="mt-3">
-      <details class="text-xs text-gray-500">
-        <summary class="cursor-pointer hover:text-purple-600 transition">⚙️ Gemini APIキーを設定</summary>
-        <div class="mt-2 flex gap-2">
-          <input id="inp-apikey" type="password" placeholder="AIza..."
-                 class="flex-1 border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-purple-300"/>
-          <button id="btn-save-key"
-                  class="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded transition">保存</button>
-        </div>
-        <p class="mt-1 text-gray-400">キーはlocalStorageに保存されます。Google Gemini APIへの送信のみに使用されます。</p>
-      </details>
-    </div>
-  </div>
 
   <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
     <!-- 漢字 -->
@@ -90,9 +65,11 @@
 
 <!-- ===== モード切替・検索・件数 ===== -->
 <div class="max-w-2xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-4 px-1">
-  <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+  <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto relative">
     <input id="inp-search" type="text" placeholder="🔍 検索..."
            class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 w-full sm:w-48 transition"/>
+    <!-- 課フィルター候補ドロップダウン -->
+    <div id="lesson-suggest" class="hidden absolute z-20 top-full left-0 bg-white border border-gray-200 rounded-lg shadow-lg mt-1 py-1 w-48"></div>
     <button id="btn-test-mode"
             class="w-full sm:w-auto px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-white text-sm font-bold rounded-lg shadow transition active:scale-95">
       📝 テストモード
@@ -210,8 +187,10 @@
 
 // ===== データ管理 =====
 const STORAGE_KEY = 'hanyu_wordbook';
+const WORDS_JSON_VERSION_KEY = 'hanyu_words_json_version';
 
-function loadWords() {
+// localStorageからユーザー追加分の単語を読み込む
+function loadUserWords() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : [];
@@ -220,46 +199,176 @@ function loadWords() {
   }
 }
 
-function saveWords(words) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(words));
+function saveUserWords(list) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
 }
 
-let words = loadWords();
+// words.json からプリセット単語を取得（Service Workerキャッシュ経由）
+async function fetchPresetWords() {
+  try {
+    const res = await fetch('./words.json');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    // バージョン管理: words.json が更新されたら再マージ
+    const storedVersion = parseInt(localStorage.getItem(WORDS_JSON_VERSION_KEY) || '0', 10);
+    if (data.version > storedVersion) {
+      localStorage.setItem(WORDS_JSON_VERSION_KEY, String(data.version));
+    }
+    return data.words || [];
+  } catch (e) {
+    console.warn('words.json の読み込みに失敗（オフラインキャッシュも無し）:', e);
+    return [];
+  }
+}
 
-// ===== 描画 =====
-function render(filter = '') {
+// 全単語を統合（プリセット + ユーザー追加）
+let words = [];
+let currentView = 'lessons'; // 'lessons' | 'words'
+let currentLesson = null;    // 表示中の課名（null=一覧）
+
+async function initWords() {
+  const presetWords = await fetchPresetWords();
+  const userWords = loadUserWords();
+  words = [...userWords, ...presetWords];
+  renderLessonList();
+}
+
+// ===== レッスン一覧表示 =====
+function renderLessonList() {
+  currentView = 'lessons';
+  currentLesson = null;
   const list = document.getElementById('card-list');
   const empty = document.getElementById('empty-state');
   const countEl = document.getElementById('word-count');
   list.innerHTML = '';
 
-  const filtered = filter
-    ? words.filter(w =>
-        w.hanzi.includes(filter) ||
-        w.pinyin.toLowerCase().includes(filter.toLowerCase()) ||
-        w.meaning.includes(filter)
-      )
-    : words;
+  // レッスンごとにグルーピング
+  const lessonMap = new Map(); // lesson名 → 単語配列
+  const userWords = [];
+  words.forEach(w => {
+    if (w.lesson) {
+      if (!lessonMap.has(w.lesson)) lessonMap.set(w.lesson, []);
+      lessonMap.get(w.lesson).push(w);
+    } else {
+      userWords.push(w);
+    }
+  });
 
-  countEl.textContent = `${filtered.length} 件`;
+  const totalGroups = lessonMap.size + (userWords.length > 0 ? 1 : 0);
+  countEl.textContent = `${totalGroups} グループ / ${words.length} 語`;
 
-  if (filtered.length === 0) {
+  if (words.length === 0) {
     empty.classList.remove('hidden');
     return;
   }
   empty.classList.add('hidden');
 
-  filtered.forEach((word, idx) => {
+  // ユーザー追加分（マイ単語）を先頭に表示
+  if (userWords.length > 0) {
+    const card = createLessonCard('マイ単語', userWords.length, null);
+    list.appendChild(card);
+  }
+
+  // 課ごとのカードを数字順に表示
+  const sortedLessons = [...lessonMap.entries()].sort((a, b) => {
+    const numA = parseInt(a[0].replace(/[^0-9]/g, '')) || 0;
+    const numB = parseInt(b[0].replace(/[^0-9]/g, '')) || 0;
+    return numA - numB;
+  });
+
+  sortedLessons.forEach(([lesson, wordsInLesson]) => {
+    const card = createLessonCard(lesson, wordsInLesson.length, lesson);
+    list.appendChild(card);
+  });
+}
+
+function createLessonCard(title, wordCount, lessonKey) {
+  const card = document.createElement('div');
+  card.className = 'card-enter bg-white rounded-xl shadow-md p-6 flex items-center gap-4 cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all';
+
+  const icon = lessonKey ? '📚' : '✏️';
+  const colorClass = lessonKey ? 'bg-indigo-100 text-indigo-600' : 'bg-blue-100 text-blue-600';
+
+  card.innerHTML = `
+    <div class="w-12 h-12 rounded-xl ${colorClass} flex items-center justify-center text-2xl flex-shrink-0">${icon}</div>
+    <div class="flex-1 min-w-0">
+      <div class="text-lg font-bold text-gray-800 truncate">${escapeHtml(title)}</div>
+      <div class="text-sm text-gray-400">${wordCount} 語</div>
+    </div>
+    <div class="text-gray-300 text-xl">›</div>
+  `;
+
+  card.addEventListener('click', () => {
+    if (lessonKey) {
+      openLesson(lessonKey);
+    } else {
+      openUserWords();
+    }
+  });
+
+  return card;
+}
+
+// ===== 課を開いて単語一覧を表示 =====
+function openLesson(lessonName) {
+  currentView = 'words';
+  currentLesson = lessonName;
+  const filtered = words.filter(w => w.lesson === lessonName);
+  renderWordCards(filtered, lessonName);
+}
+
+function openUserWords() {
+  currentView = 'words';
+  currentLesson = '__user__';
+  const filtered = words.filter(w => !w.lesson);
+  renderWordCards(filtered, 'マイ単語');
+}
+
+function renderWordCards(wordList, title) {
+  const list = document.getElementById('card-list');
+  const empty = document.getElementById('empty-state');
+  const countEl = document.getElementById('word-count');
+  list.innerHTML = '';
+
+  countEl.textContent = `${title} - ${wordList.length} 語`;
+
+  // 戻るボタン
+  const backBtn = document.createElement('div');
+  backBtn.className = 'col-span-1 sm:col-span-2 mb-2';
+  backBtn.innerHTML = `
+    <button id="btn-back-to-lessons" class="px-4 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm font-bold rounded-lg transition active:scale-95">
+      ← 一覧に戻る
+    </button>
+  `;
+  list.appendChild(backBtn);
+  backBtn.querySelector('#btn-back-to-lessons').addEventListener('click', () => {
+    searchInput.value = '';
+    renderLessonList();
+  });
+
+  if (wordList.length === 0) {
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+
+  wordList.forEach((word) => {
+    const realIdx = words.indexOf(word);
     const card = document.createElement('div');
     card.className = 'card-enter bg-white rounded-xl shadow-md p-5 flex flex-col gap-2 relative group';
 
+    const lessonTag = word.lesson
+      ? `<span class="absolute top-2 left-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-600">${escapeHtml(word.lesson)}</span>`
+      : '';
+
     card.innerHTML = `
-      <div class="flex items-start justify-between">
+      ${lessonTag}
+      <div class="flex items-start justify-between ${word.lesson ? 'mt-4' : ''}">
         <div>
           <div class="text-2xl font-bold text-gray-800 leading-tight">${escapeHtml(word.hanzi)}</div>
           <div class="text-sm text-blue-500 font-medium mt-0.5">${escapeHtml(word.pinyin)}</div>
         </div>
-        <button class="btn-delete opacity-0 group-hover:opacity-100 transition text-gray-300 hover:text-red-400 text-lg" data-idx="${idx}" title="削除">
+        <button class="btn-delete opacity-0 group-hover:opacity-100 transition text-gray-300 hover:text-red-400 text-lg" data-idx="${realIdx}" title="削除">
           ✕
         </button>
       </div>
@@ -274,7 +383,6 @@ function render(filter = '') {
     list.appendChild(card);
   });
 
-  // イベント委譲
   list.querySelectorAll('.btn-speak').forEach(btn => {
     btn.addEventListener('click', () => speak(btn.dataset.hanzi));
   });
@@ -287,18 +395,49 @@ function render(filter = '') {
   });
 }
 
+// ===== テキスト検索結果を表示 =====
+function renderSearchResults(filter) {
+  const filtered = words.filter(w =>
+    w.hanzi.includes(filter) ||
+    w.pinyin.toLowerCase().includes(filter.toLowerCase()) ||
+    w.meaning.includes(filter)
+  );
+  renderWordCards(filtered, `検索: ${filter}`);
+}
+
 // ===== 単語追加 =====
 function addWord(hanzi, pinyin, meaning) {
-  words.unshift({ hanzi, pinyin, meaning, created: Date.now() });
-  saveWords(words);
-  render(document.getElementById('inp-search').value);
+  const newWord = { hanzi, pinyin, meaning, created: Date.now() };
+  const userWords = loadUserWords();
+  userWords.unshift(newWord);
+  saveUserWords(userWords);
+  words.unshift(newWord);
+  // 追加後はマイ単語を開く
+  openUserWords();
 }
 
 // ===== 単語削除 =====
 function deleteWord(idx) {
+  const target = words[idx];
   words.splice(idx, 1);
-  saveWords(words);
-  render(document.getElementById('inp-search').value);
+  if (!target.lesson) {
+    const userWords = loadUserWords();
+    const uIdx = userWords.findIndex(w => w.hanzi === target.hanzi && w.created === target.created);
+    if (uIdx !== -1) {
+      userWords.splice(uIdx, 1);
+      saveUserWords(userWords);
+    }
+  }
+  // 現在のビューを維持
+  if (currentView === 'words' && currentLesson) {
+    if (currentLesson === '__user__') {
+      openUserWords();
+    } else {
+      openLesson(currentLesson);
+    }
+  } else {
+    renderLessonList();
+  }
 }
 
 // ===== 発音（Web Speech API） =====
@@ -372,128 +511,109 @@ document.getElementById('btn-save').addEventListener('click', () => {
   });
 });
 
-// 検索
-document.getElementById('inp-search').addEventListener('input', e => {
-  render(e.target.value.trim());
-});
+// 検索（課フィルター対応）
+const searchInput = document.getElementById('inp-search');
+const lessonSuggest = document.getElementById('lesson-suggest');
 
-// ===== AI自動入力（Google Gemini API） =====
-const APIKEY_STORAGE = 'hanyu_gemini_key';
-
-function getApiKey() {
-  return localStorage.getItem(APIKEY_STORAGE) || '';
+// 利用可能な課番号を取得
+function getAvailableLessons() {
+  const lessons = new Set();
+  words.forEach(w => {
+    if (w.lesson) lessons.add(w.lesson);
+  });
+  return [...lessons].sort((a, b) => {
+    const numA = parseInt(a.replace(/[^0-9]/g, '')) || 0;
+    const numB = parseInt(b.replace(/[^0-9]/g, '')) || 0;
+    return numA - numB;
+  });
 }
 
-document.getElementById('btn-save-key').addEventListener('click', () => {
-  const key = document.getElementById('inp-apikey').value.trim();
-  if (key) {
-    localStorage.setItem(APIKEY_STORAGE, key);
-    document.getElementById('inp-apikey').value = '';
-    document.getElementById('inp-apikey').placeholder = '設定済み（' + key.slice(0,7) + '...）';
-    showAiMsg('APIキーを保存しました。', 'text-green-600');
-  }
-});
+// lesson名を正規化（「課」→「课」、全角数字→半角数字、漢数字→アラビア数字）
+function normalizeLesson(str) {
+  const kanjiToNum = {'一':'1','二':'2','三':'3','四':'4','五':'5','六':'6','七':'7','八':'8','九':'9','十':'10'};
+  let result = str.replace(/課/g, '课')
+                  .replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  Object.entries(kanjiToNum).forEach(([k, v]) => {
+    result = result.replace(new RegExp(k, 'g'), v);
+  });
+  return result;
+}
 
-// APIキーがあれば入力欄にマスク表示
-(function() {
-  const k = getApiKey();
-  if (k) document.getElementById('inp-apikey').placeholder = '設定済み（' + k.slice(0,7) + '...）';
-})();
-
-document.getElementById('btn-ai').addEventListener('click', async () => {
-  const japanese = document.getElementById('inp-japanese').value.trim();
-  if (!japanese) {
-    showAiMsg('日本語の単語を入力してください。', 'text-red-500');
+// 候補ドロップダウンを表示
+function showLessonSuggestions(filterText) {
+  const lessons = getAvailableLessons();
+  if (lessons.length === 0) {
+    lessonSuggest.classList.add('hidden');
     return;
   }
 
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    showAiMsg('⚙️ Gemini APIキーを設定してください（下の設定を開く）。', 'text-red-500');
-    return;
-  }
-
-  const btn = document.getElementById('btn-ai');
-  btn.disabled = true;
-  btn.textContent = '⏳ 取得中...';
-  showAiMsg('Gemini APIに問い合わせ中...', 'text-purple-500');
-
-  try {
-    const result = await fetchTranslation(japanese, apiKey);
-    if (result) {
-      document.getElementById('inp-hanzi').value   = result.hanzi   || '';
-      document.getElementById('inp-pinyin').value  = result.pinyin  || '';
-      document.getElementById('inp-meaning').value = result.meaning || japanese;
-      showAiMsg(`✅ 「${result.hanzi}」(${result.pinyin}) を自動入力しました。`, 'text-green-600');
-    }
-  } catch (err) {
-    showAiMsg('❌ エラー: ' + err.message, 'text-red-500');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '✨ AI自動入力';
-  }
-});
-
-// Enterキーでも実行
-document.getElementById('inp-japanese').addEventListener('keydown', e => {
-  if (e.key === 'Enter') document.getElementById('btn-ai').click();
-});
-
-async function fetchTranslation(japanese, apiKey) {
-  const prompt = `以下の日本語を中国語に翻訳し、JSON形式のみで回答してください。他の説明は一切不要です。
-
-日本語: "${japanese}"
-
-回答フォーマット（必ずこの形式のJSONのみ）:
-{"hanzi":"中国語の漢字","pinyin":"ピンイン（声調符号付き）","meaning":"${japanese}"}`;
-
-  // Gemini API エンドポイント（v1beta / gemini-2.0-flash）
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{
-        parts: [{ text: prompt }]
-      }],
-      generationConfig: {
-        temperature: 0.2,
-        maxOutputTokens: 200,
-      },
-    }),
+  // filterTextで絞り込み（正規化して比較）
+  const normalizedFilter = filterText ? normalizeLesson(filterText) : '';
+  const matched = lessons.filter(l => {
+    if (!normalizedFilter) return true;
+    return normalizeLesson(l).includes(normalizedFilter);
   });
 
-  if (!response.ok) {
-    const errData = await response.json().catch(() => ({}));
-    const errMsg = errData.error?.message || `HTTP ${response.status}`;
-    throw new Error(errMsg);
+  if (matched.length === 0) {
+    lessonSuggest.classList.add('hidden');
+    return;
   }
 
-  const data = await response.json();
+  lessonSuggest.innerHTML = matched.map(l =>
+    `<button class="lesson-suggest-item w-full text-left px-3 py-1.5 text-sm hover:bg-indigo-50 text-gray-700 transition" data-lesson="${escapeAttr(l)}">
+      📚 ${escapeHtml(l)}
+    </button>`
+  ).join('');
+  lessonSuggest.classList.remove('hidden');
 
-  // Gemini のレスポンスからテキストを抽出
-  const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-  // JSONを抽出（```json ... ``` に包まれている場合にも対応）
-  const jsonMatch = content.match(/\{[\s\S]*?\}/);
-  if (!jsonMatch) throw new Error('APIからの応答を解析できませんでした。');
-
-  const parsed = JSON.parse(jsonMatch[0]);
-  return {
-    hanzi:   parsed.hanzi   || parsed.chinese || '',
-    pinyin:  parsed.pinyin  || '',
-    meaning: parsed.meaning || parsed.japanese || japanese,
-  };
+  lessonSuggest.querySelectorAll('.lesson-suggest-item').forEach(btn => {
+    btn.addEventListener('mousedown', (ev) => {
+      ev.preventDefault();
+      const lesson = btn.dataset.lesson;
+      searchInput.value = lesson;
+      lessonSuggest.classList.add('hidden');
+      openLesson(lesson);
+    });
+  });
 }
 
-function showAiMsg(text, colorClass) {
-  const el = document.getElementById('ai-msg');
-  el.textContent = text;
-  el.className = `mt-2 text-xs ${colorClass}`;
-  el.classList.remove('hidden');
-  setTimeout(() => el.classList.add('hidden'), 5000);
-}
+searchInput.addEventListener('input', e => {
+  const val = e.target.value.trim();
+  const normalizedVal = normalizeLesson(val);
+
+  // 空ならレッスン一覧に戻る
+  if (!val) {
+    lessonSuggest.classList.add('hidden');
+    renderLessonList();
+    return;
+  }
+
+  // 「第」で始まる入力 → 課フィルターモード
+  if (val.startsWith('第')) {
+    // 完全一致する課があればその課を開く
+    const lessons = getAvailableLessons();
+    const exactMatch = lessons.find(l => normalizeLesson(l) === normalizedVal);
+    if (exactMatch) {
+      lessonSuggest.classList.add('hidden');
+      openLesson(exactMatch);
+      return;
+    }
+    // 途中入力 → 候補を表示
+    showLessonSuggestions(val);
+    return;
+  }
+
+  // 通常検索
+  lessonSuggest.classList.add('hidden');
+  renderSearchResults(val);
+});
+
+// フォーカスが外れたら候補を閉じる
+searchInput.addEventListener('blur', () => {
+  setTimeout(() => lessonSuggest.classList.add('hidden'), 300);
+});
+
+
 
 // ===== テストモード =====
 let testState = {
@@ -534,7 +654,7 @@ const TEST_TYPES = {
 };
 
 function enterTestMode() {
-  const allWords = loadWords();
+  const allWords = words;
 
   // テスト画面表示
   document.getElementById('test-mode').classList.remove('hidden');
@@ -564,7 +684,7 @@ function enterTestMode() {
 }
 
 function startTestWithType(type) {
-  const allWords = loadWords();
+  const allWords = words;
   testState.type = type;
   testState.pool = shuffleArray([...allWords]);
   testState.correct = 0;
@@ -689,8 +809,8 @@ document.getElementById('inp-answer').addEventListener('keydown', e => {
   }
 });
 
-// ===== 初期描画 =====
-render();
+// ===== 初期化 =====
+initWords();
 
 // ===== Service Worker 登録 =====
 if ('serviceWorker' in navigator) {
