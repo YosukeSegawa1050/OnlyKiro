@@ -1,0 +1,19 @@
+{
+  "name": "中国語単語帳",
+  "short_name": "単語帳",
+  "description": "中国語の単語を登録・テスト・発音確認できる学習アプリ",
+  "start_url": "./Hanyu.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#2563eb",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='38' fill='%232563eb'/><text x='96' y='130' font-size='100' text-anchor='middle' fill='white' font-family='sans-serif'>中</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
