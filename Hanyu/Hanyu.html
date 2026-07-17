@@ -19,7 +19,7 @@
   body[data-theme="night"] { background: #e2e8f0; }
   /* タッチ端末ではタップ後に :hover が残るため、選択肢の hover 色を無効化する */
   @media (hover: none) {
-    #game-play-area [data-option-base-class]:hover {
+    #game-play-area [data-option-base-class]:hover:not(.bg-green-100):not(.bg-red-100) {
       background-color: transparent !important;
       border-color: #e5e7eb !important;
     }
