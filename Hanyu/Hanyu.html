@@ -235,6 +235,14 @@
   </div>
 </div>
 
+<!-- 手動更新ボタン -->
+<button id="btn-update-app" type="button"
+        class="fixed z-30 w-9 h-9 rounded-full bg-white/80 hover:bg-white text-gray-400 hover:text-blue-500 border border-gray-200 shadow-sm transition active:scale-90"
+        style="right: max(1rem, env(safe-area-inset-right)); bottom: max(1rem, env(safe-area-inset-bottom));"
+        aria-label="単語とアプリを更新" title="更新を確認">
+  <span id="update-icon" class="inline-block" aria-hidden="true">↻</span>
+</button>
+
 <script>
 'use strict';
 
@@ -1127,13 +1135,8 @@ const wordsReady = initWords();
 
 // ===== Service Worker 登録 =====
 let serviceWorkerRegistration = null;
-let lastUpdateCheck = 0;
 
 async function checkForAppUpdates() {
-  const now = Date.now();
-  if (now - lastUpdateCheck < 5000) return;
-  lastUpdateCheck = now;
-
   await wordsReady;
   await refreshWords();
   if (serviceWorkerRegistration) {
@@ -1143,11 +1146,30 @@ async function checkForAppUpdates() {
   }
 }
 
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') checkForAppUpdates();
+$('btn-update-app').addEventListener('click', async () => {
+  const button = $('btn-update-app');
+  const icon = $('update-icon');
+  button.disabled = true;
+  button.title = '更新中…';
+  icon.classList.add('animate-spin');
+
+  try {
+    await checkForAppUpdates();
+    icon.textContent = '✓';
+    button.title = '更新しました';
+  } catch (error) {
+    console.warn('更新に失敗:', error);
+    icon.textContent = '!';
+    button.title = '更新できませんでした';
+  } finally {
+    icon.classList.remove('animate-spin');
+    button.disabled = false;
+    setTimeout(() => {
+      icon.textContent = '↻';
+      button.title = '更新を確認';
+    }, 2000);
+  }
 });
-window.addEventListener('focus', checkForAppUpdates);
-window.addEventListener('pageshow', checkForAppUpdates);
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
