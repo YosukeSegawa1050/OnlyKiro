@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+<title>Daily Schedule</title>
+<!-- PWA -->
+<link rel="manifest" href="./ds-manifest.json"/>
+<meta name="theme-color" content="#ffffff"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+<meta name="apple-mobile-web-app-title" content="Schedule"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+:root{--bg:#ffffff;--text:#1f2937;--muted:#6b7280;--border:#e5e7eb;--accent:#2563eb;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Segoe UI','Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;min-height:100dvh;}
+/* 円グラフSVG */
+.chart-container{position:relative;width:100%;max-width:420px;aspect-ratio:1/1;margin:0 auto;}
+.chart-container svg{width:100%;height:100%;cursor:default;}
+.slice{cursor:grab;transition:opacity .15s;}
+.slice:hover{opacity:.85;}
+.slice.dragging{opacity:.7;cursor:grabbing;}
+/* タイムラベル */
+.time-label{font-size:10px;fill:var(--muted);user-select:none;pointer-events:none;}
+/* カード */
+.card{background:#fff;border:1px solid var(--border);border-radius:16px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.04);}
+/* カテゴリータグ */
+.cat-dot{width:12px;height:12px;border-radius:50%;display:inline-block;flex-shrink:0;}
+/* モーダル */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:100;opacity:0;pointer-events:none;transition:opacity .2s;}
+.modal-bg.open{opacity:1;pointer-events:auto;}
+.modal-box{background:#fff;border-radius:20px;padding:28px;width:92%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.15);}
+/* 統計バー */
+.stat-bar{height:8px;border-radius:4px;transition:width .4s ease;}
+/* レスポンシブ */
+@media(min-width:768px){
+  .app-layout{display:grid;grid-template-columns:1fr 380px;gap:24px;align-items:start;}
+}
+</style>
+</head>
+<body class="p-4 sm:p-6 lg:p-8">
+
+<!-- ===== アプリヘッダー ===== -->
+<header class="max-w-5xl mx-auto flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-xl font-bold tracking-tight">📅 Daily Schedule</h1>
+    <p id="today-date" class="text-xs text-gray-400 mt-0.5"></p>
+  </div>
+  <button id="btn-add-task" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold rounded-xl shadow transition active:scale-95">
+    ＋ タスク追加
+  </button>
+</header>
+
+<!-- ===== メインレイアウト ===== -->
+<div class="max-w-5xl mx-auto app-layout">
+
+  <!-- 左: 円グラフ -->
+  <div class="card mb-6 md:mb-0">
+    <div class="chart-container" id="chart-container">
+      <svg id="chart-svg" viewBox="0 0 400 400"></svg>
+    </div>
+  </div>
+
+  <!-- 右: サイドバー -->
+  <div class="flex flex-col gap-4">
+
+    <!-- デイリー統計 -->
+    <div class="card">
+      <h2 class="text-sm font-bold text-gray-700 mb-3">📊 デイリー統計</h2>
+      <div id="stats-area" class="flex flex-col gap-2 text-xs"></div>
+      <div id="stats-empty" class="text-xs text-gray-400 text-center py-4">タスクを追加すると統計が表示されます</div>
+    </div>
+
+    <!-- タスク一覧 -->
+    <div class="card">
+      <h2 class="text-sm font-bold text-gray-700 mb-3">📋 タスク一覧</h2>
+      <div id="task-list" class="flex flex-col gap-2 max-h-[300px] overflow-y-auto"></div>
+      <div id="task-empty" class="text-xs text-gray-400 text-center py-4">タスクがありません</div>
+    </div>
+
+    <!-- カテゴリー管理 -->
+    <div class="card">
+      <h2 class="text-sm font-bold text-gray-700 mb-3">🎨 カテゴリー</h2>
+      <div id="cat-list" class="flex flex-wrap gap-2"></div>
+      <button id="btn-add-cat" class="mt-3 text-xs text-blue-600 hover:text-blue-500 font-semibold transition">＋ カテゴリー追加</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== タスク追加モーダル ===== -->
+<div id="modal-task" class="modal-bg">
+  <div class="modal-box">
+    <h3 class="text-base font-bold mb-4">タスクを追加</h3>
+    <div class="flex flex-col gap-3">
+      <div>
+        <label class="text-xs font-semibold text-gray-500">タスク名</label>
+        <input id="inp-task-name" type="text" placeholder="例：ミーティング" class="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"/>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-xs font-semibold text-gray-500">開始</label>
+          <input id="inp-start" type="time" class="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"/>
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-gray-500">終了</label>
+          <input id="inp-end" type="time" class="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"/>
+        </div>
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-gray-500">カテゴリー</label>
+        <select id="inp-category" class="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"></select>
+      </div>
+      <div id="modal-task-err" class="text-xs text-red-500 hidden"></div>
+      <div class="flex gap-2 mt-2">
+        <button id="btn-modal-cancel" class="flex-1 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm transition">キャンセル</button>
+        <button id="btn-modal-save" class="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm transition">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== カテゴリー追加モーダル ===== -->
+<div id="modal-cat" class="modal-bg">
+  <div class="modal-box">
+    <h3 class="text-base font-bold mb-4">カテゴリーを追加</h3>
+    <div class="flex flex-col gap-3">
+      <div>
+        <label class="text-xs font-semibold text-gray-500">カテゴリー名</label>
+        <input id="inp-cat-name" type="text" placeholder="例：運動" class="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"/>
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-gray-500">色</label>
+        <input id="inp-cat-color" type="color" value="#6366f1" class="mt-1 w-16 h-10 border border-gray-200 rounded-lg cursor-pointer"/>
+      </div>
+      <div class="flex gap-2 mt-2">
+        <button id="btn-cat-cancel" class="flex-1 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm transition">キャンセル</button>
+        <button id="btn-cat-save" class="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm transition">追加</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<script>
+'use strict';
+/* ============================================================
+   Daily Schedule — 24時間円グラフスケジューラ
+   ============================================================ */
+
+// ========== 定数 ==========
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const CX = 200, CY = 200, R = 160, INNER_R = 80;
+const STORAGE_KEY = 'daily_schedule_data';
+
+// ========== デフォルトカテゴリー ==========
+const DEFAULT_CATEGORIES = [
+  { id: 'work',  name: '仕事', color: '#2563eb' },
+  { id: 'study', name: '学習', color: '#7c3aed' },
+  { id: 'sleep', name: '睡眠', color: '#1e3a5a' },
+  { id: 'free',  name: '自由', color: '#10b981' },
+  { id: 'meal',  name: '食事', color: '#f59e0b' },
+  { id: 'exercise', name: '運動', color: '#ef4444' },
+];
+
+// ========== 状態管理 ==========
+let state = loadState();
+
+function defaultState() {
+  return { tasks: [], categories: [...DEFAULT_CATEGORIES] };
+}
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) { const s = JSON.parse(raw); if (s.categories && s.tasks) return s; }
+  } catch(e) {}
+  return defaultState();
+}
+function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+// ========== ユーティリティ ==========
+function timeToMinutes(t) { const [h,m] = t.split(':').map(Number); return h*60+m; }
+function minutesToTime(m) { const h=Math.floor(m/60)%24; const mm=m%60; return `${String(h).padStart(2,'0')}:${String(mm).padStart(2,'0')}`; }
+function minutesToAngle(m) { return (m / 1440) * 360 - 90; } // 0時=上
+function angleToDeg(angle) { return angle; }
+function polarToXY(cx,cy,r,angleDeg) {
+  const rad = angleDeg * Math.PI / 180;
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+}
+function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+// ========== 円グラフ描画 ==========
+function renderChart() {
+  const svg = document.getElementById('chart-svg');
+  svg.innerHTML = '';
+
+  // 背景円
+  const bgCircle = document.createElementNS(SVG_NS, 'circle');
+  bgCircle.setAttribute('cx', CX); bgCircle.setAttribute('cy', CY);
+  bgCircle.setAttribute('r', R); bgCircle.setAttribute('fill', '#f9fafb');
+  bgCircle.setAttribute('stroke', '#e5e7eb'); bgCircle.setAttribute('stroke-width', '1');
+  svg.appendChild(bgCircle);
+
+  // 時間目盛り
+  for (let h = 0; h < 24; h++) {
+    const angle = minutesToAngle(h * 60);
+    const p1 = polarToXY(CX, CY, R - 4, angle);
+    const p2 = polarToXY(CX, CY, R + 2, angle);
+    const line = document.createElementNS(SVG_NS, 'line');
+    line.setAttribute('x1', p1.x); line.setAttribute('y1', p1.y);
+    line.setAttribute('x2', p2.x); line.setAttribute('y2', p2.y);
+    line.setAttribute('stroke', h % 6 === 0 ? '#9ca3af' : '#d1d5db');
+    line.setAttribute('stroke-width', h % 6 === 0 ? '2' : '1');
+    svg.appendChild(line);
+
+    // ラベル (0,3,6,9,12,15,18,21)
+    if (h % 3 === 0) {
+      const lp = polarToXY(CX, CY, R + 14, angle);
+      const text = document.createElementNS(SVG_NS, 'text');
+      text.setAttribute('x', lp.x); text.setAttribute('y', lp.y);
+      text.setAttribute('text-anchor', 'middle'); text.setAttribute('dominant-baseline', 'middle');
+      text.setAttribute('class', 'time-label');
+      text.textContent = `${h}`;
+      svg.appendChild(text);
+    }
+  }
+
+  // タスクスライス
+  state.tasks.forEach(task => {
+    const cat = state.categories.find(c => c.id === task.categoryId);
+    const color = cat ? cat.color : '#9ca3af';
+    const startAngle = minutesToAngle(task.startMin);
+    const endAngle = minutesToAngle(task.endMin > task.startMin ? task.endMin : task.endMin + 1440);
+    const largeArc = (task.endMin > task.startMin ? task.endMin - task.startMin : task.endMin + 1440 - task.startMin) > 720 ? 1 : 0;
+
+    const p1 = polarToXY(CX, CY, R, startAngle);
+    const p2 = polarToXY(CX, CY, R, endAngle);
+    const p3 = polarToXY(CX, CY, INNER_R, endAngle);
+    const p4 = polarToXY(CX, CY, INNER_R, startAngle);
+
+    const d = [
+      `M ${p1.x} ${p1.y}`,
+      `A ${R} ${R} 0 ${largeArc} 1 ${p2.x} ${p2.y}`,
+      `L ${p3.x} ${p3.y}`,
+      `A ${INNER_R} ${INNER_R} 0 ${largeArc} 0 ${p4.x} ${p4.y}`,
+      'Z'
+    ].join(' ');
+
+    const path = document.createElementNS(SVG_NS, 'path');
+    path.setAttribute('d', d);
+    path.setAttribute('fill', color);
+    path.setAttribute('fill-opacity', '0.75');
+    path.setAttribute('stroke', '#fff');
+    path.setAttribute('stroke-width', '2');
+    path.setAttribute('class', 'slice');
+    path.dataset.taskId = task.id;
+    svg.appendChild(path);
+
+    // タスク名ラベル（中央に表示）
+    const midMin = task.startMin + (task.endMin > task.startMin ? (task.endMin - task.startMin)/2 : (task.endMin + 1440 - task.startMin)/2);
+    const midAngle = minutesToAngle(midMin % 1440);
+    const labelR = (R + INNER_R) / 2;
+    const lp = polarToXY(CX, CY, labelR, midAngle);
+    const duration = task.endMin > task.startMin ? task.endMin - task.startMin : task.endMin + 1440 - task.startMin;
+    if (duration >= 30) { // 30分以上ならラベル表示
+      const label = document.createElementNS(SVG_NS, 'text');
+      label.setAttribute('x', lp.x); label.setAttribute('y', lp.y);
+      label.setAttribute('text-anchor', 'middle'); label.setAttribute('dominant-baseline', 'middle');
+      label.setAttribute('fill', '#fff'); label.setAttribute('font-size', duration >= 60 ? '11' : '9');
+      label.setAttribute('font-weight', 'bold'); label.setAttribute('pointer-events', 'none');
+      label.textContent = task.name.length > 6 ? task.name.slice(0,6)+'…' : task.name;
+      svg.appendChild(label);
+    }
+  });
+
+  // 中央テキスト
+  const centerText = document.createElementNS(SVG_NS, 'text');
+  centerText.setAttribute('x', CX); centerText.setAttribute('y', CY);
+  centerText.setAttribute('text-anchor', 'middle'); centerText.setAttribute('dominant-baseline', 'middle');
+  centerText.setAttribute('fill', '#374151'); centerText.setAttribute('font-size', '14');
+  centerText.setAttribute('font-weight', 'bold');
+  const now = new Date();
+  centerText.textContent = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  svg.appendChild(centerText);
+
+  // ドラッグイベント設定
+  setupDrag();
+}
+
+// ========== ドラッグ＆ドロップ ==========
+let dragState = null;
+
+function setupDrag() {
+  const svg = document.getElementById('chart-svg');
+  const slices = svg.querySelectorAll('.slice');
+  slices.forEach(slice => {
+    slice.addEventListener('mousedown', startDrag);
+    slice.addEventListener('touchstart', startDrag, { passive: false });
+  });
+}
+
+function startDrag(e) {
+  e.preventDefault();
+  const taskId = e.currentTarget.dataset.taskId;
+  const task = state.tasks.find(t => t.id === taskId);
+  if (!task) return;
+
+  const svg = document.getElementById('chart-svg');
+  const rect = svg.getBoundingClientRect();
+  const point = getEventPoint(e);
+  const startAngle = getAngleFromPoint(point.x - rect.left, point.y - rect.top, rect.width, rect.height);
+
+  dragState = { taskId, startAngle, origStart: task.startMin, origEnd: task.endMin };
+  e.currentTarget.classList.add('dragging');
+
+  document.addEventListener('mousemove', onDrag);
+  document.addEventListener('mouseup', endDrag);
+  document.addEventListener('touchmove', onDrag, { passive: false });
+  document.addEventListener('touchend', endDrag);
+}
+
+function onDrag(e) {
+  if (!dragState) return;
+  e.preventDefault();
+  const svg = document.getElementById('chart-svg');
+  const rect = svg.getBoundingClientRect();
+  const point = getEventPoint(e);
+  const currentAngle = getAngleFromPoint(point.x - rect.left, point.y - rect.top, rect.width, rect.height);
+
+  let deltaAngle = currentAngle - dragState.startAngle;
+  if (deltaAngle > 180) deltaAngle -= 360;
+  if (deltaAngle < -180) deltaAngle += 360;
+
+  const deltaMin = Math.round(deltaAngle / 360 * 1440 / 15) * 15; // 15分単位
+
+  const task = state.tasks.find(t => t.id === dragState.taskId);
+  if (!task) return;
+
+  task.startMin = ((dragState.origStart + deltaMin) % 1440 + 1440) % 1440;
+  task.endMin = ((dragState.origEnd + deltaMin) % 1440 + 1440) % 1440;
+
+  renderChart();
+  renderTaskList();
+  renderStats();
+}
+
+function endDrag(e) {
+  if (!dragState) return;
+  dragState = null;
+  document.removeEventListener('mousemove', onDrag);
+  document.removeEventListener('mouseup', endDrag);
+  document.removeEventListener('touchmove', onDrag);
+  document.removeEventListener('touchend', endDrag);
+  document.querySelectorAll('.slice.dragging').forEach(el => el.classList.remove('dragging'));
+  saveState();
+  scheduleNotifications();
+}
+
+function getEventPoint(e) {
+  if (e.touches && e.touches.length > 0) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  return { x: e.clientX, y: e.clientY };
+}
+
+function getAngleFromPoint(x, y, w, h) {
+  const cx = w / 2, cy = h / 2;
+  const dx = x - cx, dy = y - cy;
+  let angle = Math.atan2(dy, dx) * 180 / Math.PI;
+  return angle;
+}
+
+// ========== タスク一覧表示 ==========
+function renderTaskList() {
+  const list = document.getElementById('task-list');
+  const empty = document.getElementById('task-empty');
+  list.innerHTML = '';
+  if (state.tasks.length === 0) { empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+
+  const sorted = [...state.tasks].sort((a,b) => a.startMin - b.startMin);
+  sorted.forEach(task => {
+    const cat = state.categories.find(c => c.id === task.categoryId);
+    const div = document.createElement('div');
+    div.className = 'flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 transition group';
+    div.innerHTML = `
+      <span class="cat-dot" style="background:${cat?cat.color:'#9ca3af'}"></span>
+      <div class="flex-1 min-w-0">
+        <div class="text-xs font-semibold text-gray-800 truncate">${task.name}</div>
+        <div class="text-xs text-gray-400">${minutesToTime(task.startMin)} ~ ${minutesToTime(task.endMin)}</div>
+      </div>
+      <button class="text-gray-300 hover:text-red-400 text-sm opacity-0 group-hover:opacity-100 transition" data-del="${task.id}">✕</button>
+    `;
+    list.appendChild(div);
+  });
+
+  list.querySelectorAll('[data-del]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.tasks = state.tasks.filter(t => t.id !== btn.dataset.del);
+      saveState(); renderAll();
+    });
+  });
+}
+
+// ========== デイリー統計 ==========
+function renderStats() {
+  const area = document.getElementById('stats-area');
+  const empty = document.getElementById('stats-empty');
+  area.innerHTML = '';
+
+  if (state.tasks.length === 0) { empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+
+  // カテゴリーごとの合計分数
+  const totals = {};
+  state.tasks.forEach(task => {
+    const dur = task.endMin > task.startMin ? task.endMin - task.startMin : task.endMin + 1440 - task.startMin;
+    totals[task.categoryId] = (totals[task.categoryId] || 0) + dur;
+  });
+
+  const maxMin = Math.max(...Object.values(totals), 1);
+
+  state.categories.forEach(cat => {
+    const min = totals[cat.id] || 0;
+    if (min === 0) return;
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    const pct = (min / 1440 * 100).toFixed(1);
+
+    const row = document.createElement('div');
+    row.className = 'flex flex-col gap-1';
+    row.innerHTML = `
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-1.5">
+          <span class="cat-dot" style="background:${cat.color}"></span>
+          <span class="text-xs font-semibold text-gray-700">${cat.name}</span>
+        </div>
+        <span class="text-xs text-gray-400">${h}時間${m > 0 ? m + '分' : ''} (${pct}%)</span>
+      </div>
+      <div class="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+        <div class="stat-bar" style="width:${min/maxMin*100}%;background:${cat.color}"></div>
+      </div>
+    `;
+    area.appendChild(row);
+  });
+}
+
+// ========== カテゴリー表示 ==========
+function renderCategories() {
+  const list = document.getElementById('cat-list');
+  list.innerHTML = '';
+  state.categories.forEach(cat => {
+    const tag = document.createElement('span');
+    tag.className = 'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border border-gray-200';
+    tag.innerHTML = `<span class="cat-dot" style="background:${cat.color}"></span>${cat.name}`;
+    list.appendChild(tag);
+  });
+
+  // セレクトボックスも更新
+  const sel = document.getElementById('inp-category');
+  sel.innerHTML = '';
+  state.categories.forEach(cat => {
+    const opt = document.createElement('option');
+    opt.value = cat.id; opt.textContent = cat.name;
+    sel.appendChild(opt);
+  });
+}
+
+// ========== 通知機能 ==========
+let notificationTimers = [];
+
+function requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+function scheduleNotifications() {
+  notificationTimers.forEach(t => clearTimeout(t));
+  notificationTimers = [];
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+
+  state.tasks.forEach(task => {
+    const diffMin = task.startMin - nowMin;
+    if (diffMin > 0 && diffMin <= 60) {
+      const ms = (diffMin - 1) * 60 * 1000; // 1分前に通知
+      const timer = setTimeout(() => {
+        new Notification('📅 タスク開始', {
+          body: `「${task.name}」が${minutesToTime(task.startMin)}に始まります`,
+          icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="%232563eb"/><text x="50" y="65" font-size="40" text-anchor="middle" fill="white">📅</text></svg>'
+        });
+      }, ms > 0 ? ms : 0);
+      notificationTimers.push(timer);
+    }
+  });
+}
+
+// ========== モーダル操作 ==========
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// タスク追加
+document.getElementById('btn-add-task').addEventListener('click', () => openModal('modal-task'));
+document.getElementById('btn-modal-cancel').addEventListener('click', () => closeModal('modal-task'));
+document.getElementById('btn-modal-save').addEventListener('click', () => {
+  const name = document.getElementById('inp-task-name').value.trim();
+  const start = document.getElementById('inp-start').value;
+  const end = document.getElementById('inp-end').value;
+  const catId = document.getElementById('inp-category').value;
+  const err = document.getElementById('modal-task-err');
+
+  if (!name || !start || !end) {
+    err.textContent = '全ての項目を入力してください'; err.classList.remove('hidden'); return;
+  }
+  err.classList.add('hidden');
+
+  state.tasks.push({ id: genId(), name, startMin: timeToMinutes(start), endMin: timeToMinutes(end), categoryId: catId });
+  saveState(); closeModal('modal-task'); renderAll();
+  document.getElementById('inp-task-name').value = '';
+  scheduleNotifications();
+});
+
+// カテゴリー追加
+document.getElementById('btn-add-cat').addEventListener('click', () => openModal('modal-cat'));
+document.getElementById('btn-cat-cancel').addEventListener('click', () => closeModal('modal-cat'));
+document.getElementById('btn-cat-save').addEventListener('click', () => {
+  const name = document.getElementById('inp-cat-name').value.trim();
+  const color = document.getElementById('inp-cat-color').value;
+  if (!name) return;
+  state.categories.push({ id: genId(), name, color });
+  saveState(); closeModal('modal-cat'); renderAll();
+  document.getElementById('inp-cat-name').value = '';
+});
+
+// モーダル背景クリックで閉じる
+document.querySelectorAll('.modal-bg').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
+});
+
+// ========== 全体描画 ==========
+function renderAll() {
+  renderChart();
+  renderTaskList();
+  renderStats();
+  renderCategories();
+}
+
+// ========== 日付表示 ==========
+function showToday() {
+  const d = new Date();
+  const days = ['日','月','火','水','木','金','土'];
+  document.getElementById('today-date').textContent =
+    `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${days[d.getDay()]}）`;
+}
+
+// ========== 初期化 ==========
+showToday();
+renderAll();
+requestNotificationPermission();
+scheduleNotifications();
+
+// 1分ごとに中央時計更新＋通知スケジュール
+setInterval(() => {
+  renderChart();
+  scheduleNotifications();
+}, 60000);
+
+// Service Worker
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./ds-sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
