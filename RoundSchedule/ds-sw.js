@@ -1,5 +1,5 @@
-const CACHE_NAME = 'daily-schedule-v2';
-const ASSETS = ['./RoundSchedule.html', './ds-manifest.json'];
+const CACHE_NAME = 'daily-schedule-v3';
+const ASSETS = ['./RoundSchedule.html', './ds-manifest.json', './icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(ASSETS)));
