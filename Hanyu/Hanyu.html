@@ -11,7 +11,7 @@
 <meta name="mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black"/>
 <meta name="apple-mobile-web-app-title" content="単語アプリ"/>
-<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' rx='36' fill='%232563eb'/><text x='90' y='120' font-size='90' text-anchor='middle' fill='white' font-family='sans-serif'>中</text></svg>"/>
+<link rel="apple-touch-icon" href="./hanyu-icon.png"/>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
   body { background: #f8fafc; }
@@ -235,13 +235,17 @@
   </div>
 </div>
 
-<!-- 手動更新ボタン -->
-<button id="btn-update-app" type="button"
-        class="fixed z-30 w-9 h-9 rounded-full bg-white/80 hover:bg-white text-gray-400 hover:text-blue-500 border border-gray-200 shadow-sm transition active:scale-90"
-        style="right: max(1rem, env(safe-area-inset-right)); bottom: max(1rem, env(safe-area-inset-bottom));"
-        aria-label="単語とアプリを更新" title="更新を確認">
-  <span id="update-icon" class="inline-block" aria-hidden="true">↻</span>
-</button>
+<!-- ページ下部のアプリ操作 -->
+<footer class="max-w-2xl mx-auto mt-10 px-1 pb-2 flex flex-col items-end gap-2">
+  <p id="standalone-guide" class="hidden text-[11px] text-gray-400 text-right">
+    Safariの共有メニューから「ホーム画面に追加」すると、独立したアプリとして開けます。
+  </p>
+  <button id="btn-update-app" type="button"
+          class="w-9 h-9 rounded-full bg-white/80 hover:bg-white text-gray-400 hover:text-blue-500 border border-gray-200 shadow-sm transition active:scale-90"
+          aria-label="単語とアプリを更新" title="更新を確認">
+    <span id="update-icon" class="inline-block" aria-hidden="true">↻</span>
+  </button>
+</footer>
 
 <script>
 'use strict';
@@ -1133,6 +1137,11 @@ document.addEventListener('keydown', e => {
 // ===== 初期化 =====
 const wordsReady = initWords();
 
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
+  window.navigator.standalone === true;
+const isIos = /iPhone|iPad|iPod/i.test(window.navigator.userAgent);
+setHidden($('standalone-guide'), isStandalone || !isIos);
+
 // ===== Service Worker 登録 =====
 let serviceWorkerRegistration = null;
 
@@ -1146,27 +1155,27 @@ async function checkForAppUpdates() {
   }
 }
 
-$('btn-update-app').addEventListener('click', async () => {
+function setUpdateButtonState({ icon, title, loading = false }) {
   const button = $('btn-update-app');
-  const icon = $('update-icon');
-  button.disabled = true;
-  button.title = '更新中…';
-  icon.classList.add('animate-spin');
+  const iconElement = $('update-icon');
+  button.disabled = loading;
+  button.title = title;
+  iconElement.textContent = icon;
+  iconElement.classList.toggle('animate-spin', loading);
+}
+
+$('btn-update-app').addEventListener('click', async () => {
+  setUpdateButtonState({ icon: '↻', title: '更新中…', loading: true });
 
   try {
     await checkForAppUpdates();
-    icon.textContent = '✓';
-    button.title = '更新しました';
+    setUpdateButtonState({ icon: '✓', title: '更新しました' });
   } catch (error) {
     console.warn('更新に失敗:', error);
-    icon.textContent = '!';
-    button.title = '更新できませんでした';
+    setUpdateButtonState({ icon: '!', title: '更新できませんでした' });
   } finally {
-    icon.classList.remove('animate-spin');
-    button.disabled = false;
     setTimeout(() => {
-      icon.textContent = '↻';
-      button.title = '更新を確認';
+      setUpdateButtonState({ icon: '↻', title: '更新を確認' });
     }, 2000);
   }
 });

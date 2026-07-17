@@ -1,11 +1,12 @@
 'use strict';
 
-const CACHE_NAME = 'hanyu-v4';
+const CACHE_NAME = 'hanyu-v5';
 const ASSETS_TO_CACHE = [
   './',
   './Hanyu.html',
   './words.json',
   './manifest.json',
+  './hanyu-icon.png',
 ];
 
 // インストール時: 主要ファイルをキャッシュに保存
