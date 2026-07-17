@@ -106,15 +106,25 @@
       </button>
     </div>
 
-    <!-- スコア表示 -->
-    <div id="test-score" class="flex gap-6 text-sm text-gray-500">
-      <span>正解: <span id="score-correct" class="font-bold text-green-600">0</span></span>
-      <span>不正解: <span id="score-wrong" class="font-bold text-red-500">0</span></span>
-      <span>残り: <span id="score-remaining" class="font-bold text-gray-700">0</span></span>
+    <!-- テスト種別選択（単語カード / 記述式） -->
+    <div id="test-category-select" class="w-full flex flex-col items-center gap-4">
+      <p class="text-sm text-gray-500">テスト形式を選んでください</p>
+      <div class="flex gap-4 w-full max-w-sm">
+        <button id="btn-flashcard-mode"
+                class="flex-1 py-6 rounded-xl border-2 border-orange-300 bg-orange-50 hover:bg-orange-100 transition flex flex-col items-center gap-2">
+          <span class="text-3xl">🃏</span>
+          <span class="text-sm font-bold text-orange-700">単語カード</span>
+        </button>
+        <button id="btn-writing-mode"
+                class="flex-1 py-6 rounded-xl border-2 border-amber-300 bg-amber-50 hover:bg-amber-100 transition flex flex-col items-center gap-2">
+          <span class="text-3xl">✍️</span>
+          <span class="text-sm font-bold text-amber-700">記述式</span>
+        </button>
+      </div>
     </div>
 
-    <!-- 出題形式選択 -->
-    <div id="test-type-select" class="w-full flex flex-col items-center gap-2">
+    <!-- 記述式: 出題形式選択 -->
+    <div id="test-type-select" class="hidden w-full flex flex-col items-center gap-2">
       <p class="text-xs text-gray-400">出題形式を選んでください</p>
       <div class="flex flex-wrap gap-2 justify-center">
         <button data-type="meaning-to-hanzi" class="test-type-btn px-4 py-2 rounded-lg border-2 border-amber-400 bg-amber-50 text-amber-700 text-sm font-bold transition hover:bg-amber-100">
@@ -132,14 +142,37 @@
       </div>
     </div>
 
-    <!-- 問題表示 -->
+    <!-- 単語カード: サブモード選択 -->
+    <div id="flashcard-type-select" class="hidden w-full flex flex-col items-center gap-2">
+      <p class="text-xs text-gray-400">カードの表示形式を選んでください</p>
+      <div class="flex flex-wrap gap-2 justify-center">
+        <button data-fc-type="meaning-hanzi" class="fc-type-btn px-4 py-2 rounded-lg border-2 border-orange-400 bg-orange-50 text-orange-700 text-sm font-bold transition hover:bg-orange-100">
+          日本語・中国語
+        </button>
+        <button data-fc-type="meaning-pinyin" class="fc-type-btn px-4 py-2 rounded-lg border-2 border-pink-400 bg-pink-50 text-pink-700 text-sm font-bold transition hover:bg-pink-100">
+          日本語・ピンイン
+        </button>
+        <button data-fc-type="hanzi-pinyin" class="fc-type-btn px-4 py-2 rounded-lg border-2 border-violet-400 bg-violet-50 text-violet-700 text-sm font-bold transition hover:bg-violet-100">
+          中国語・ピンイン
+        </button>
+      </div>
+    </div>
+
+    <!-- スコア表示 -->
+    <div id="test-score" class="hidden flex gap-6 text-sm text-gray-500">
+      <span>正解: <span id="score-correct" class="font-bold text-green-600">0</span></span>
+      <span>不正解: <span id="score-wrong" class="font-bold text-red-500">0</span></span>
+      <span>残り: <span id="score-remaining" class="font-bold text-gray-700">0</span></span>
+    </div>
+
+    <!-- 記述式: 問題表示 -->
     <div id="test-question-area" class="hidden w-full text-center py-6">
-      <p id="test-question-label" class="text-sm text-gray-400 mb-2">以下の日本語を中国語に翻訳してください</p>
+      <p id="test-question-label" class="text-sm text-gray-400 mb-2"></p>
       <div id="test-question" class="text-3xl font-black text-gray-800"></div>
     </div>
 
-    <!-- 回答入力 -->
-    <div id="test-input-area" class="w-full flex flex-col items-center gap-3">
+    <!-- 記述式: 回答入力 -->
+    <div id="test-input-area" class="hidden w-full flex flex-col items-center gap-3">
       <input id="inp-answer" type="text" placeholder="中国語（漢字）を入力..."
              class="w-full max-w-xs border-2 border-amber-300 rounded-xl px-4 py-3 text-xl text-center focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"/>
       <button id="btn-answer"
@@ -148,13 +181,39 @@
       </button>
     </div>
 
-    <!-- 結果表示 -->
+    <!-- 記述式: 結果表示 -->
     <div id="test-result-area" class="hidden w-full flex flex-col items-center gap-4">
       <div id="test-result-msg" class="text-xl font-bold"></div>
       <div id="test-result-detail" class="text-sm text-gray-500 bg-gray-50 rounded-xl p-4 w-full max-w-xs text-center"></div>
       <button id="btn-next-question"
               class="px-8 py-2.5 bg-blue-500 hover:bg-blue-400 text-white font-bold rounded-xl shadow transition active:scale-95">
         次の問題 →
+      </button>
+    </div>
+
+    <!-- 単語カード: フラッシュカード表示 -->
+    <div id="flashcard-area" class="hidden w-full flex flex-col items-center gap-4">
+      <div id="flashcard-container" class="relative w-full max-w-sm h-64 flex items-center justify-center">
+        <div id="flashcard" class="absolute inset-0 bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-xl border border-gray-100 flex flex-col items-center justify-center p-6 cursor-grab select-none transition-transform duration-300"
+             style="touch-action: pan-y;">
+          <div id="fc-front" class="text-center">
+            <div id="fc-front-label" class="text-xs text-gray-400 mb-2"></div>
+            <div id="fc-front-text" class="text-3xl font-black text-gray-800"></div>
+          </div>
+          <div id="fc-back" class="hidden text-center mt-4 pt-4 border-t-2 border-dashed border-gray-200 w-full">
+            <div id="fc-back-label" class="text-xs text-gray-400 mb-1"></div>
+            <div id="fc-back-text" class="text-2xl font-bold text-blue-600"></div>
+          </div>
+        </div>
+      </div>
+      <p id="fc-tap-hint" class="text-xs text-gray-400">タップで答えを表示 / スワイプで次へ</p>
+      <div id="fc-buttons" class="hidden flex items-center gap-6 mt-2">
+        <button id="btn-fc-wrong" class="w-14 h-14 rounded-full bg-red-100 hover:bg-red-200 text-red-500 text-2xl font-bold flex items-center justify-center transition active:scale-90 shadow">✕</button>
+        <button id="btn-fc-undo" class="hidden w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 text-lg font-bold flex items-center justify-center transition active:scale-90 shadow">↩</button>
+        <button id="btn-fc-correct" class="w-14 h-14 rounded-full bg-green-100 hover:bg-green-200 text-green-500 text-2xl font-bold flex items-center justify-center transition active:scale-90 shadow">✓</button>
+      </div>
+      <button id="btn-fc-undo-standalone" class="hidden mt-2 px-4 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-500 text-sm font-bold rounded-lg transition active:scale-95">
+        ↩ 前のカードに戻す
       </button>
     </div>
 
@@ -188,6 +247,23 @@
 // ===== データ管理 =====
 const STORAGE_KEY = 'hanyu_wordbook';
 const WORDS_JSON_VERSION_KEY = 'hanyu_words_json_version';
+const USER_LESSON_KEY = '__user__';
+
+const $ = id => document.getElementById(id);
+const setHidden = (element, hidden) => element.classList.toggle('hidden', hidden);
+const getLessonNumber = lesson => parseInt(lesson.replace(/\D/g, ''), 10) || 0;
+const sortLessons = (a, b) => getLessonNumber(a) - getLessonNumber(b);
+
+const elements = {
+  cardList: $('card-list'),
+  emptyState: $('empty-state'),
+  wordCount: $('word-count'),
+  searchInput: $('inp-search'),
+  lessonSuggest: $('lesson-suggest'),
+  wordbookMode: $('wordbook-mode'),
+  testMode: $('test-mode'),
+  answerInput: $('inp-answer'),
+};
 
 // localStorageからユーザー追加分の単語を読み込む
 function loadUserWords() {
@@ -203,10 +279,11 @@ function saveUserWords(list) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
 }
 
-// words.json からプリセット単語を取得（Service Workerキャッシュ経由）
+// words.json からプリセット単語を取得（常に最新を取得）
 async function fetchPresetWords() {
   try {
-    const res = await fetch('./words.json');
+    // キャッシュバスティング: ブラウザのHTTPキャッシュを回避
+    const res = await fetch('./words.json?t=' + Date.now(), { cache: 'no-cache' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     // バージョン管理: words.json が更新されたら再マージ
@@ -237,9 +314,7 @@ async function initWords() {
 function renderLessonList() {
   currentView = 'lessons';
   currentLesson = null;
-  const list = document.getElementById('card-list');
-  const empty = document.getElementById('empty-state');
-  const countEl = document.getElementById('word-count');
+  const { cardList: list, emptyState: empty, wordCount: countEl } = elements;
   list.innerHTML = '';
 
   // レッスンごとにグルーピング
@@ -257,11 +332,8 @@ function renderLessonList() {
   const totalGroups = lessonMap.size + (userWords.length > 0 ? 1 : 0);
   countEl.textContent = `${totalGroups} グループ / ${words.length} 語`;
 
-  if (words.length === 0) {
-    empty.classList.remove('hidden');
-    return;
-  }
-  empty.classList.add('hidden');
+  setHidden(empty, words.length > 0);
+  if (words.length === 0) return;
 
   // ユーザー追加分（マイ単語）を先頭に表示
   if (userWords.length > 0) {
@@ -270,11 +342,7 @@ function renderLessonList() {
   }
 
   // 課ごとのカードを数字順に表示
-  const sortedLessons = [...lessonMap.entries()].sort((a, b) => {
-    const numA = parseInt(a[0].replace(/[^0-9]/g, '')) || 0;
-    const numB = parseInt(b[0].replace(/[^0-9]/g, '')) || 0;
-    return numA - numB;
-  });
+  const sortedLessons = [...lessonMap.entries()].sort((a, b) => sortLessons(a[0], b[0]));
 
   sortedLessons.forEach(([lesson, wordsInLesson]) => {
     const card = createLessonCard(lesson, wordsInLesson.length, lesson);
@@ -319,15 +387,13 @@ function openLesson(lessonName) {
 
 function openUserWords() {
   currentView = 'words';
-  currentLesson = '__user__';
+  currentLesson = USER_LESSON_KEY;
   const filtered = words.filter(w => !w.lesson);
   renderWordCards(filtered, 'マイ単語');
 }
 
 function renderWordCards(wordList, title) {
-  const list = document.getElementById('card-list');
-  const empty = document.getElementById('empty-state');
-  const countEl = document.getElementById('word-count');
+  const { cardList: list, emptyState: empty, wordCount: countEl } = elements;
   list.innerHTML = '';
 
   countEl.textContent = `${title} - ${wordList.length} 語`;
@@ -346,11 +412,8 @@ function renderWordCards(wordList, title) {
     renderLessonList();
   });
 
-  if (wordList.length === 0) {
-    empty.classList.remove('hidden');
-    return;
-  }
-  empty.classList.add('hidden');
+  setHidden(empty, wordList.length > 0);
+  if (wordList.length === 0) return;
 
   wordList.forEach((word) => {
     const realIdx = words.indexOf(word);
@@ -368,9 +431,11 @@ function renderWordCards(wordList, title) {
           <div class="text-2xl font-bold text-gray-800 leading-tight">${escapeHtml(word.hanzi)}</div>
           <div class="text-sm text-blue-500 font-medium mt-0.5">${escapeHtml(word.pinyin)}</div>
         </div>
-        <button class="btn-delete opacity-0 group-hover:opacity-100 transition text-gray-300 hover:text-red-400 text-lg" data-idx="${realIdx}" title="削除">
-          ✕
-        </button>
+        ${word.lesson ? '' : `
+          <button class="btn-delete opacity-0 group-hover:opacity-100 transition text-gray-300 hover:text-red-400 text-lg" data-idx="${realIdx}" title="削除">
+            ✕
+          </button>
+        `}
       </div>
       <div class="text-sm text-gray-600 border-t border-gray-100 pt-2">${escapeHtml(word.meaning)}</div>
       <div class="flex justify-end mt-1">
@@ -397,9 +462,10 @@ function renderWordCards(wordList, title) {
 
 // ===== テキスト検索結果を表示 =====
 function renderSearchResults(filter) {
+  const normalizedFilter = filter.toLowerCase();
   const filtered = words.filter(w =>
     w.hanzi.includes(filter) ||
-    w.pinyin.toLowerCase().includes(filter.toLowerCase()) ||
+    w.pinyin.toLowerCase().includes(normalizedFilter) ||
     w.meaning.includes(filter)
   );
   renderWordCards(filtered, `検索: ${filter}`);
@@ -430,7 +496,7 @@ function deleteWord(idx) {
   }
   // 現在のビューを維持
   if (currentView === 'words' && currentLesson) {
-    if (currentLesson === '__user__') {
+    if (currentLesson === USER_LESSON_KEY) {
       openUserWords();
     } else {
       openLesson(currentLesson);
@@ -469,11 +535,11 @@ if ('speechSynthesis' in window) {
 }
 
 // ===== ユーティリティ =====
-function escapeHtml(str) {
-  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+function escapeHtml(value = '') {
+  return String(value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-function escapeAttr(str) {
-  return str.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function escapeAttr(value = '') {
+  return escapeHtml(value).replace(/'/g,'&#39;');
 }
 
 // ===== イベント =====
@@ -512,8 +578,7 @@ document.getElementById('btn-save').addEventListener('click', () => {
 });
 
 // 検索（課フィルター対応）
-const searchInput = document.getElementById('inp-search');
-const lessonSuggest = document.getElementById('lesson-suggest');
+const { searchInput, lessonSuggest } = elements;
 
 // 利用可能な課番号を取得
 function getAvailableLessons() {
@@ -521,11 +586,7 @@ function getAvailableLessons() {
   words.forEach(w => {
     if (w.lesson) lessons.add(w.lesson);
   });
-  return [...lessons].sort((a, b) => {
-    const numA = parseInt(a.replace(/[^0-9]/g, '')) || 0;
-    const numB = parseInt(b.replace(/[^0-9]/g, '')) || 0;
-    return numA - numB;
-  });
+  return [...lessons].sort(sortLessons);
 }
 
 // lesson名を正規化（「課」→「课」、全角数字→半角数字、漢数字→アラビア数字）
@@ -618,14 +679,17 @@ searchInput.addEventListener('blur', () => {
 // ===== テストモード =====
 let testState = {
   active: false,
-  pool: [],       // 出題プール（シャッフル済み）
-  current: null,  // 現在の問題
+  mode: null,     // 'writing' | 'flashcard'
+  pool: [],
+  current: null,
   correct: 0,
   wrong: 0,
-  type: null,     // 'meaning-to-hanzi' | 'pinyin-to-meaning' | 'pinyin-to-hanzi'
+  type: null,
+  fcType: null,   // flashcard type
+  fcRevealed: false,
 };
 
-// 出題形式の設定
+// 記述式の設定
 const TEST_TYPES = {
   'meaning-to-hanzi': {
     label: '以下の日本語を中国語（漢字）で答えてください',
@@ -653,55 +717,61 @@ const TEST_TYPES = {
   },
 };
 
-function enterTestMode() {
-  const allWords = words;
+// 単語カードの設定
+const FC_TYPES = {
+  'meaning-hanzi': {
+    frontLabel: '日本語',
+    backLabel: '中国語',
+    getFront: w => w.meaning || '',
+    getBack: w => w.hanzi || '',
+  },
+  'meaning-pinyin': {
+    frontLabel: '日本語',
+    backLabel: 'ピンイン',
+    getFront: w => w.meaning || '',
+    getBack: w => w.pinyin || '',
+  },
+  'hanzi-pinyin': {
+    frontLabel: '中国語',
+    backLabel: 'ピンイン',
+    getFront: w => w.hanzi || '',
+    getBack: w => w.pinyin || '',
+  },
+};
 
-  // テスト画面表示
-  document.getElementById('test-mode').classList.remove('hidden');
-  document.getElementById('wordbook-mode').classList.add('hidden');
+const testPanelIds = [
+  'test-category-select', 'test-type-select', 'flashcard-type-select',
+  'test-score', 'test-question-area', 'test-input-area',
+  'test-result-area', 'flashcard-area', 'test-empty', 'test-complete',
+];
 
-  if (allWords.length === 0) {
-    document.getElementById('test-empty').classList.remove('hidden');
-    document.getElementById('test-type-select').classList.add('hidden');
-    document.getElementById('test-question-area').classList.add('hidden');
-    document.getElementById('test-input-area').classList.add('hidden');
-    document.getElementById('test-result-area').classList.add('hidden');
-    document.getElementById('test-complete').classList.add('hidden');
-    document.getElementById('test-score').classList.add('hidden');
-    testState.active = true;
-    return;
-  }
-
-  // 出題形式選択画面を表示
-  document.getElementById('test-empty').classList.add('hidden');
-  document.getElementById('test-complete').classList.add('hidden');
-  document.getElementById('test-question-area').classList.add('hidden');
-  document.getElementById('test-input-area').classList.add('hidden');
-  document.getElementById('test-result-area').classList.add('hidden');
-  document.getElementById('test-type-select').classList.remove('hidden');
-  document.getElementById('test-score').classList.add('hidden');
-  testState.active = true;
+function showTestPanels(visible) {
+  testPanelIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) setHidden(el, !visible.includes(id));
+  });
 }
 
-function startTestWithType(type) {
-  const allWords = words;
-  testState.type = type;
-  testState.pool = shuffleArray([...allWords]);
-  testState.correct = 0;
-  testState.wrong = 0;
+function enterTestMode() {
+  setHidden(elements.testMode, false);
+  setHidden(elements.wordbookMode, true);
+  testState.active = true;
+  testState.mode = null;
 
-  document.getElementById('test-type-select').classList.add('hidden');
-  document.getElementById('test-score').classList.remove('hidden');
-
-  updateTestScore();
-  showNextQuestion();
+  if (words.length === 0) {
+    showTestPanels(['test-empty']);
+    return;
+  }
+  showTestPanels(['test-category-select']);
 }
 
 function exitTestMode() {
   testState.active = false;
+  testState.mode = null;
   testState.type = null;
-  document.getElementById('test-mode').classList.add('hidden');
-  document.getElementById('wordbook-mode').classList.remove('hidden');
+  testState.fcType = null;
+  setHidden(elements.testMode, true);
+  setHidden(elements.wordbookMode, false);
 }
 
 function shuffleArray(arr) {
@@ -712,6 +782,22 @@ function shuffleArray(arr) {
   return arr;
 }
 
+// --- 記述式 ---
+function enterWritingMode() {
+  testState.mode = 'writing';
+  showTestPanels(['test-type-select']);
+}
+
+function startTestWithType(type) {
+  testState.type = type;
+  testState.pool = shuffleArray([...words]);
+  testState.correct = 0;
+  testState.wrong = 0;
+  showTestPanels(['test-score']);
+  updateTestScore();
+  showNextQuestion();
+}
+
 function showNextQuestion() {
   if (testState.pool.length === 0) {
     showTestComplete();
@@ -720,20 +806,18 @@ function showNextQuestion() {
   testState.current = testState.pool.pop();
   const cfg = TEST_TYPES[testState.type];
 
-  document.getElementById('test-question-label').textContent = cfg.label;
-  document.getElementById('test-question').textContent = cfg.getQuestion(testState.current);
-  document.getElementById('inp-answer').placeholder = cfg.placeholder;
+  $('test-question-label').textContent = cfg.label;
+  $('test-question').textContent = cfg.getQuestion(testState.current);
+  elements.answerInput.placeholder = cfg.placeholder;
 
-  document.getElementById('test-question-area').classList.remove('hidden');
-  document.getElementById('test-input-area').classList.remove('hidden');
-  document.getElementById('test-result-area').classList.add('hidden');
-  document.getElementById('inp-answer').value = '';
-  document.getElementById('inp-answer').focus();
+  showTestPanels(['test-question-area', 'test-input-area', 'test-score']);
+  elements.answerInput.value = '';
+  elements.answerInput.focus();
   updateTestScore();
 }
 
 function checkAnswer() {
-  const userAnswer = document.getElementById('inp-answer').value.trim();
+  const userAnswer = elements.answerInput.value.trim();
   if (!userAnswer) return;
 
   const cfg = TEST_TYPES[testState.type];
@@ -742,15 +826,15 @@ function checkAnswer() {
 
   if (isCorrect) {
     testState.correct++;
-    document.getElementById('test-result-msg').textContent = '🎉 正解！';
-    document.getElementById('test-result-msg').className = 'text-xl font-bold text-green-600';
+    $('test-result-msg').textContent = '🎉 正解！';
+    $('test-result-msg').className = 'text-xl font-bold text-green-600';
   } else {
     testState.wrong++;
-    document.getElementById('test-result-msg').textContent = '❌ 不正解';
-    document.getElementById('test-result-msg').className = 'text-xl font-bold text-red-500';
+    $('test-result-msg').textContent = '❌ 不正解';
+    $('test-result-msg').className = 'text-xl font-bold text-red-500';
   }
 
-  document.getElementById('test-result-detail').innerHTML = `
+  $('test-result-detail').innerHTML = `
     <div class="text-xs text-gray-400 mb-1">正解</div>
     <div class="text-lg font-bold text-gray-800">${escapeHtml(correctAnswer)}</div>
     <div class="mt-2 text-xs text-gray-400">この単語の情報</div>
@@ -760,50 +844,230 @@ function checkAnswer() {
     ${!isCorrect ? `<div class="mt-2 text-xs text-red-400">あなたの回答: ${escapeHtml(userAnswer)}</div>` : ''}
   `;
 
-  document.getElementById('test-input-area').classList.add('hidden');
-  document.getElementById('test-result-area').classList.remove('hidden');
+  showTestPanels(['test-question-area', 'test-result-area', 'test-score']);
   updateTestScore();
-
-  // 結果表示後にページ最下部へスクロール
-  setTimeout(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }), 100);
 }
 
-function showTestComplete() {
-  document.getElementById('test-question-area').classList.add('hidden');
-  document.getElementById('test-input-area').classList.add('hidden');
-  document.getElementById('test-result-area').classList.add('hidden');
-  document.getElementById('test-complete').classList.remove('hidden');
+// --- 単語カード（フラッシュカード） ---
+let fcHistory = []; // 戻る用の履歴スタック
 
+function enterFlashcardMode() {
+  testState.mode = 'flashcard';
+  showTestPanels(['flashcard-type-select']);
+}
+
+function startFlashcard(fcType) {
+  testState.fcType = fcType;
+  testState.pool = shuffleArray([...words]);
+  testState.correct = 0;
+  testState.wrong = 0;
+  testState.fcRevealed = false;
+  fcHistory = [];
+  showTestPanels(['test-score', 'flashcard-area']);
+  updateFcUndoBtn();
+  updateTestScore();
+  showNextFlashcard();
+}
+
+function showNextFlashcard() {
+  if (testState.pool.length === 0) {
+    showTestComplete();
+    return;
+  }
+  testState.current = testState.pool.pop();
+  testState.fcRevealed = false;
+  const cfg = FC_TYPES[testState.fcType];
+
+  const flashcard = $('flashcard');
+  flashcard.style.transform = '';
+  flashcard.style.opacity = '1';
+
+  $('fc-front-label').textContent = cfg.frontLabel;
+  $('fc-front-text').textContent = cfg.getFront(testState.current);
+  $('fc-back-label').textContent = cfg.backLabel;
+  $('fc-back-text').textContent = cfg.getBack(testState.current);
+
+  setHidden($('fc-back'), true);
+  setHidden($('fc-buttons'), true);
+  setHidden($('fc-tap-hint'), false);
+  updateFcUndoBtn();
+  updateTestScore();
+}
+
+function revealFlashcard() {
+  if (testState.fcRevealed) return;
+  testState.fcRevealed = true;
+  setHidden($('fc-back'), false);
+  setHidden($('fc-buttons'), false);
+  setHidden($('fc-tap-hint'), true);
+}
+
+function dismissFlashcard(direction) {
+  // direction: 'right' = correct, 'left' = wrong
+  if (direction === 'right') testState.correct++;
+  else testState.wrong++;
+
+  // 履歴に保存
+  fcHistory.push({ word: testState.current, direction });
+
+  const flashcard = $('flashcard');
+  const translateX = direction === 'right' ? '120%' : '-120%';
+  flashcard.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+  flashcard.style.transform = `translateX(${translateX}) rotate(${direction === 'right' ? '10' : '-10'}deg)`;
+  flashcard.style.opacity = '0';
+
+  updateTestScore();
+
+  setTimeout(() => {
+    flashcard.style.transition = 'none';
+    flashcard.style.transform = 'translateX(0) rotate(0)';
+    flashcard.style.opacity = '1';
+    setTimeout(() => {
+      flashcard.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+      showNextFlashcard();
+    }, 50);
+  }, 300);
+}
+
+// 一つ前のカードに戻す
+function undoFlashcard() {
+  if (fcHistory.length === 0) return;
+  const last = fcHistory.pop();
+
+  // スコアを戻す
+  if (last.direction === 'right') testState.correct--;
+  else testState.wrong--;
+
+  // 現在のカードをプールに戻す
+  if (testState.current) {
+    testState.pool.push(testState.current);
+  }
+
+  // 前のカードを表示
+  testState.current = last.word;
+  testState.fcRevealed = false;
+  const cfg = FC_TYPES[testState.fcType];
+
+  const flashcard = $('flashcard');
+  flashcard.style.transition = 'none';
+  flashcard.style.transform = '';
+  flashcard.style.opacity = '1';
+
+  $('fc-front-label').textContent = cfg.frontLabel;
+  $('fc-front-text').textContent = cfg.getFront(testState.current);
+  $('fc-back-label').textContent = cfg.backLabel;
+  $('fc-back-text').textContent = cfg.getBack(testState.current);
+
+  setHidden($('fc-back'), true);
+  setHidden($('fc-buttons'), true);
+  setHidden($('fc-tap-hint'), false);
+  updateFcUndoBtn();
+  updateTestScore();
+
+  // test-completeが表示されていた場合は戻す
+  showTestPanels(['test-score', 'flashcard-area']);
+}
+
+function updateFcUndoBtn() {
+  const btn = $('btn-fc-undo');
+  const btnStandalone = $('btn-fc-undo-standalone');
+  const hasHistory = fcHistory.length > 0;
+  if (btn) setHidden(btn, !hasHistory);
+  if (btnStandalone) setHidden(btnStandalone, !hasHistory);
+}
+
+// スワイプ操作
+(function initSwipe() {
+  let startX = 0, currentX = 0, isDragging = false;
+  const flashcard = $('flashcard');
+
+  flashcard.addEventListener('pointerdown', e => {
+    if (testState.mode !== 'flashcard') return;
+    isDragging = true;
+    startX = e.clientX;
+    currentX = 0;
+    flashcard.style.transition = 'none';
+    flashcard.setPointerCapture(e.pointerId);
+  });
+
+  flashcard.addEventListener('pointermove', e => {
+    if (!isDragging) return;
+    currentX = e.clientX - startX;
+    const rotate = currentX * 0.05;
+    flashcard.style.transform = `translateX(${currentX}px) rotate(${rotate}deg)`;
+    flashcard.style.opacity = Math.max(0.5, 1 - Math.abs(currentX) / 300).toString();
+  });
+
+  flashcard.addEventListener('pointerup', e => {
+    if (!isDragging) return;
+    isDragging = false;
+    flashcard.releasePointerCapture(e.pointerId);
+
+    if (Math.abs(currentX) > 80) {
+      dismissFlashcard(currentX > 0 ? 'right' : 'left');
+    } else {
+      flashcard.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
+      flashcard.style.transform = '';
+      flashcard.style.opacity = '1';
+    }
+    currentX = 0;
+  });
+
+  // タップで裏面を表示（スワイプでなかった場合のみ）
+  flashcard.addEventListener('click', e => {
+    if (Math.abs(currentX) > 5) return;
+    if (!testState.fcRevealed && testState.mode === 'flashcard') {
+      revealFlashcard();
+    }
+  });
+})();
+
+// --- 共通 ---
+function showTestComplete() {
+  showTestPanels(['test-complete', 'test-score']);
   const total = testState.correct + testState.wrong;
   const pct = total > 0 ? Math.round(testState.correct / total * 100) : 0;
-  document.getElementById('test-final-score').innerHTML =
+  $('test-final-score').innerHTML =
     `${total}問中 <span class="text-green-600 font-bold">${testState.correct}問正解</span>（正答率 ${pct}%）`;
 }
 
 function updateTestScore() {
-  document.getElementById('score-correct').textContent = testState.correct;
-  document.getElementById('score-wrong').textContent = testState.wrong;
-  document.getElementById('score-remaining').textContent = testState.pool.length;
+  $('score-correct').textContent = testState.correct;
+  $('score-wrong').textContent = testState.wrong;
+  $('score-remaining').textContent = testState.pool.length;
 }
 
 // テストモードイベント
-document.getElementById('btn-test-mode').addEventListener('click', enterTestMode);
-document.getElementById('btn-exit-test').addEventListener('click', exitTestMode);
-document.getElementById('btn-answer').addEventListener('click', checkAnswer);
-document.getElementById('btn-next-question').addEventListener('click', showNextQuestion);
-document.getElementById('btn-restart-test').addEventListener('click', enterTestMode);
+$('btn-test-mode').addEventListener('click', enterTestMode);
+$('btn-exit-test').addEventListener('click', exitTestMode);
+$('btn-flashcard-mode').addEventListener('click', enterFlashcardMode);
+$('btn-writing-mode').addEventListener('click', enterWritingMode);
+$('btn-answer').addEventListener('click', checkAnswer);
+$('btn-next-question').addEventListener('click', showNextQuestion);
+$('btn-restart-test').addEventListener('click', enterTestMode);
+$('btn-fc-correct').addEventListener('click', () => dismissFlashcard('right'));
+$('btn-fc-wrong').addEventListener('click', () => dismissFlashcard('left'));
+$('btn-fc-undo').addEventListener('click', undoFlashcard);
+$('btn-fc-undo-standalone').addEventListener('click', undoFlashcard);
 
-// 出題形式ボタン
+// 記述式: 出題形式ボタン
 document.querySelectorAll('.test-type-btn').forEach(btn => {
   btn.addEventListener('click', () => startTestWithType(btn.dataset.type));
 });
 
+// 単語カード: サブモード選択ボタン
+document.querySelectorAll('.fc-type-btn').forEach(btn => {
+  btn.addEventListener('click', () => startFlashcard(btn.dataset.fcType));
+});
+
 // Enterキーで回答
-document.getElementById('inp-answer').addEventListener('keydown', e => {
+elements.answerInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') {
-    if (!document.getElementById('test-input-area').classList.contains('hidden')) {
+    const inputArea = $('test-input-area');
+    const resultArea = $('test-result-area');
+    if (!inputArea.classList.contains('hidden')) {
       checkAnswer();
-    } else if (!document.getElementById('test-result-area').classList.contains('hidden')) {
+    } else if (!resultArea.classList.contains('hidden')) {
       showNextQuestion();
     }
   }
@@ -815,8 +1079,20 @@ initWords();
 // ===== Service Worker 登録 =====
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js')
-      .then(reg => console.log('SW registered:', reg.scope))
+    navigator.serviceWorker.register('./service-worker.js', { updateViaCache: 'none' })
+      .then(reg => {
+        console.log('SW registered:', reg.scope);
+        // 新しいSWがあれば即座にアクティベート
+        reg.addEventListener('updatefound', () => {
+          const newSW = reg.installing;
+          newSW.addEventListener('statechange', () => {
+            if (newSW.state === 'activated') {
+              // 新しいSWがアクティブになったらリロードして最新を反映
+              window.location.reload();
+            }
+          });
+        });
+      })
       .catch(err => console.log('SW registration failed:', err));
   });
 }
