@@ -24,7 +24,7 @@
   }
 </style>
 </head>
-<body class="min-h-screen py-8 px-4">
+<body class="min-h-screen py-8 px-4 pb-24">
 
 <!-- ===== ヘッダー ===== -->
 <div class="max-w-2xl mx-auto mb-8 text-center">
@@ -40,18 +40,6 @@
       <div class="flex gap-3 text-right text-sm"><span><span class="block text-[10px] text-gray-400">EXP</span><b id="game-xp" class="text-indigo-600">0</b></span><span><span class="block text-[10px] text-gray-400">COIN</span><b id="game-coins" class="text-amber-500">0</b></span></div>
     </div>
     <div id="wanted-word-list" class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
-    <div class="mt-4 pt-3 border-t border-indigo-100">
-      <p class="text-xs font-bold text-indigo-500">📊 苦手単語</p>
-      <div id="weak-word-list" class="mt-2 flex flex-wrap gap-2"></div>
-    </div>
-    <div class="mt-4 pt-3 border-t border-indigo-100">
-      <p class="text-xs font-bold text-indigo-500">🏅 バッジ</p>
-      <div id="achievement-list" class="mt-2 flex flex-wrap gap-2"></div>
-    </div>
-    <div class="mt-4 pt-3 border-t border-indigo-100">
-      <p class="text-xs font-bold text-indigo-500">🎨 背景テーマ</p>
-      <div id="theme-list" class="mt-2 flex flex-wrap gap-2"></div>
-    </div>
     <div class="mt-4 flex flex-wrap items-center justify-between gap-3"><p id="daily-bonus-status" class="text-xs text-gray-500"></p><button id="btn-claim-daily-bonus" class="hidden px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-white text-xs font-bold rounded-lg shadow transition active:scale-95">本日のボーナスを受け取る</button></div>
   </div>
 </section>
@@ -289,6 +277,12 @@
   </div>
 </div>
 
+<nav class="fixed z-40 inset-x-4 bottom-3 max-w-md mx-auto bg-white/75 backdrop-blur border border-white/80 shadow-lg rounded-2xl px-2 py-2 flex justify-around">
+  <a href="./menu.html?view=weak" class="px-3 py-1.5 text-xs font-bold text-gray-600 hover:text-indigo-600">📊 苦手</a>
+  <a href="./menu.html?view=badges" class="px-3 py-1.5 text-xs font-bold text-gray-600 hover:text-indigo-600">🏅 バッジ</a>
+  <a href="./menu.html?view=settings" class="px-3 py-1.5 text-xs font-bold text-gray-600 hover:text-indigo-600">⚙️ 設定</a>
+</nav>
+
 <!-- ページ下部のアプリ操作 -->
 <footer class="max-w-2xl mx-auto mt-10 px-1 pb-2 flex flex-col items-end gap-2">
   <p id="standalone-guide" class="hidden text-[11px] text-gray-400 text-right">
@@ -441,7 +435,8 @@ function renderGameDashboard() {
       return bScore - aScore;
     })
     .slice(0, 3);
-  $('weak-word-list').innerHTML = weakWords.length
+  const weakWordList = $('weak-word-list');
+  if (weakWordList) weakWordList.innerHTML = weakWords.length
     ? weakWords.map(({ word, stats }) => `<span class="bg-white/80 rounded-full px-2.5 py-1 text-xs text-gray-600"><b>${escapeHtml(word.hanzi)}</b>　正 ${stats.correct || 0} / 誤 ${stats.wrong || 0}</span>`).join('')
     : '<span class="text-xs text-gray-400">ゲームをプレイすると苦手単語を分析します</span>';
 
@@ -453,19 +448,21 @@ function renderGameDashboard() {
     { icon: '💰', label: 'コイン収集家', unlocked: gameState.coins >= 30 },
     { icon: '⭐', label: '学習の達人', unlocked: gameState.xp >= 100 },
   ];
-  $('achievement-list').innerHTML = achievements.map(badge => `<span class="rounded-full px-2.5 py-1 text-xs ${badge.unlocked ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-400'}">${badge.icon} ${badge.label}${badge.unlocked ? '' : ' 🔒'}</span>`).join('');
+  const achievementList = $('achievement-list');
+  if (achievementList) achievementList.innerHTML = achievements.map(badge => `<span class="rounded-full px-2.5 py-1 text-xs ${badge.unlocked ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-400'}">${badge.icon} ${badge.label}${badge.unlocked ? '' : ' 🔒'}</span>`).join('');
 
   const themes = [
     { id: 'default', label: '標準', cost: 0 },
     { id: 'sunset', label: '夕焼け', cost: 10 },
     { id: 'night', label: 'ナイト', cost: 20 },
   ];
-  $('theme-list').innerHTML = themes.map(theme => {
+  const themeList = $('theme-list');
+  if (themeList) themeList.innerHTML = themes.map(theme => {
     const owned = theme.cost === 0 || (gameState.unlockedThemes || []).includes(theme.id);
     const selected = gameState.theme === theme.id;
     return `<button class="theme-btn rounded-lg px-2.5 py-1 text-xs font-bold ${selected ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 border border-gray-200'}" data-theme-id="${theme.id}" data-theme-cost="${theme.cost}">${theme.label}${owned ? '' : ` 🔒${theme.cost}`}</button>`;
   }).join('');
-  document.querySelectorAll('.theme-btn').forEach(button => button.addEventListener('click', () => selectTheme(button.dataset.themeId, Number(button.dataset.themeCost))));
+  if (themeList) document.querySelectorAll('.theme-btn').forEach(button => button.addEventListener('click', () => selectTheme(button.dataset.themeId, Number(button.dataset.themeCost))));
 
   const playedToday = gameState.lastPlayDate === getLocalDate();
   const claimedToday = gameState.lastBonusDate === getLocalDate();
@@ -1459,6 +1456,7 @@ $('btn-fc-undo').addEventListener('click', undoFlashcard);
 $('btn-fc-undo-standalone').addEventListener('click', undoFlashcard);
 $('btn-claim-daily-bonus').addEventListener('click', claimDailyBonus);
 
+
 // 記述式: 出題形式ボタン
 document.querySelectorAll('.test-type-btn').forEach(btn => {
   btn.addEventListener('click', () => startTestWithType(btn.dataset.type));
@@ -1574,9 +1572,16 @@ function renderChoiceButtons(containerId, choices, onSelect, className) {
   choices.forEach(choice => {
     const button = document.createElement('button');
     button.className = className;
+    button.dataset.optionBaseClass = className;
     button.textContent = choice;
     button.addEventListener('click', () => onSelect(choice, button));
     container.appendChild(button);
+  });
+}
+
+function lockGameOptions() {
+  document.querySelectorAll('#game-play-area [data-option-base-class]').forEach(button => {
+    button.disabled = true;
   });
 }
 
@@ -1780,6 +1785,7 @@ function showFakeQuestion() {
   options.forEach(option => {
     const button = document.createElement('button');
     button.className = 'w-full text-left p-4 rounded-xl border border-gray-200 hover:border-rose-400 hover:bg-rose-50 font-bold transition';
+    button.dataset.optionBaseClass = button.className;
     button.textContent = option.text;
     button.addEventListener('click', () => answerFake(option.fake, button));
     $('fake-options').appendChild(button);
@@ -1788,6 +1794,7 @@ function showFakeQuestion() {
 
 function answerFake(isFake, button) {
   if (fakeState.finished) return;
+  lockGameOptions();
   const word = fakeState.current.word;
   recordWordAttempt(word, isFake, 'fake');
   if (isFake) { fakeState.correct++; button.classList.add('bg-green-100', 'border-green-400'); }
@@ -1833,6 +1840,7 @@ function showListeningQuestion() {
 }
 
 function answerListening(correct, button) {
+  lockGameOptions();
   recordWordAttempt(listeningState.current, correct, 'listening');
   if (correct) { listeningState.correct++; button.classList.add('bg-green-100', 'border-green-400'); }
   else button.classList.add('bg-red-100', 'border-red-400');
@@ -1840,8 +1848,9 @@ function answerListening(correct, button) {
 }
 
 function clearOptionFeedback() {
-  document.querySelectorAll('#game-play-area button').forEach(button => {
-    button.classList.remove('bg-green-100', 'border-green-400', 'bg-red-100', 'border-red-400');
+  document.querySelectorAll('#game-play-area [data-option-base-class]').forEach(button => {
+    button.className = button.dataset.optionBaseClass;
+    button.disabled = false;
   });
 }
 
@@ -1901,6 +1910,7 @@ function showDungeonTurn(message = '中国語の意味を選んで攻撃！') {
 
 function answerDungeon(correct) {
   const state = dungeonState;
+  lockGameOptions();
   recordWordAttempt(state.current, correct, 'dungeon');
   if (correct) {
     state.combo++;

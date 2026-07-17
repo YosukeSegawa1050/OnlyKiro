@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+<title>学習メニュー | 中国語単語帳</title>
+<link rel="manifest" href="./manifest.json"/>
+<meta name="theme-color" content="#2563eb"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { background: #f8fafc; }
+  body[data-theme="sunset"] { background: #fff7ed; }
+  body[data-theme="night"] { background: #e2e8f0; }
+</style>
+</head>
+<body class="min-h-screen p-4 sm:p-8">
+<main class="max-w-2xl mx-auto">
+  <header class="flex items-center justify-between mb-6">
+    <div><p class="text-xs font-bold text-indigo-500">LEARNING MENU</p><h1 id="menu-title" class="text-2xl font-bold text-gray-800"></h1></div>
+    <a href="./Hanyu.html" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-bold rounded-lg">← 単語帳へ</a>
+  </header>
+  <section class="bg-white rounded-2xl shadow-lg p-5 sm:p-6">
+    <div id="menu-content"></div>
+  </section>
+</main>
+<script>
+'use strict';
+const GAME_STATE_KEY = 'hanyu_game_state';
+const $ = id => document.getElementById(id);
+const escapeHtml = value => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const view = new URLSearchParams(location.search).get('view') || 'weak';
+
+function loadGameState() {
+  try { return JSON.parse(localStorage.getItem(GAME_STATE_KEY)) || {}; }
+  catch { return {}; }
+}
+
+function saveGameState(state) {
+  localStorage.setItem(GAME_STATE_KEY, JSON.stringify(state));
+}
+
+function getWordId(word) {
+  return word.id || `${word.lesson || 'user'}:${word.hanzi}:${word.pinyin}`;
+}
+
+function applyTheme(state) {
+  document.body.dataset.theme = state.theme || 'default';
+}
+
+async function init() {
+  const state = loadGameState();
+  applyTheme(state);
+  const response = await fetch('./words.json', { cache: 'no-cache' });
+  const data = response.ok ? await response.json() : { words: [] };
+  const userWords = JSON.parse(localStorage.getItem('hanyu_wordbook') || '[]');
+  const words = [...userWords, ...(data.words || [])];
+  render(state, words);
+}
+
+function render(state, words) {
+  const content = $('menu-content');
+  const stats = state.stats || {};
+  if (view === 'weak') {
+    $('menu-title').textContent = '📊 苦手単語';
+    const weakWords = words.map(word => ({ word, stat: stats[getWordId(word)] || {} }))
+      .filter(({ stat }) => (stat.correct || 0) + (stat.wrong || 0) > 0)
+      .sort((a, b) => ((b.stat.wrong || 0) * 2 - (b.stat.correct || 0)) - ((a.stat.wrong || 0) * 2 - (a.stat.correct || 0)))
+      .slice(0, 10);
+    content.innerHTML = weakWords.length ? `<div class="space-y-3">${weakWords.map(({ word, stat }) => `<div class="flex items-center justify-between rounded-xl bg-indigo-50 p-4"><div><b class="text-lg text-gray-800">${escapeHtml(word.hanzi)}</b><span class="ml-2 text-sm text-blue-500">${escapeHtml(word.pinyin)}</span><p class="text-sm text-gray-500">${escapeHtml(word.meaning)}</p></div><span class="text-sm font-bold text-indigo-600">正 ${stat.correct || 0} / 誤 ${stat.wrong || 0}</span></div>`).join('')}</div>` : '<p class="py-10 text-center text-gray-400">ゲームをプレイすると苦手単語を分析します。</p>';
+    return;
+  }
+  if (view === 'badges') {
+    $('menu-title').textContent = '🏅 バッジ';
+    const wanted = state.wanted || { progress: {}, wordIds: [] };
+    const captured = (wanted.wordIds || []).filter(id => (wanted.progress[id] || []).length >= 3).length;
+    const badges = [['🌱','はじめの一歩', state.xp >= 10], ['🔥','3日連続', state.streak >= 3], ['🎯','指名手配制覇', captured >= 3], ['💰','コイン収集家', state.coins >= 30], ['⭐','学習の達人', state.xp >= 100]];
+    content.innerHTML = `<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">${badges.map(([icon, label, unlocked]) => `<div class="rounded-xl p-4 ${unlocked ? 'bg-amber-50 border border-amber-200 text-amber-700' : 'bg-gray-50 text-gray-400'}"><b class="text-lg">${icon} ${label}</b><p class="mt-1 text-xs">${unlocked ? '獲得済み' : '未獲得 🔒'}</p></div>`).join('')}</div>`;
+    return;
+  }
+  $('menu-title').textContent = '⚙️ 設定';
+  const themes = [{ id:'default', label:'標準', cost:0 }, { id:'sunset', label:'夕焼け', cost:10 }, { id:'night', label:'ナイト', cost:20 }];
+  content.innerHTML = `<p class="text-sm text-gray-500">所持コイン：<b class="text-amber-500">${state.coins || 0}</b></p><div class="mt-4 grid gap-3">${themes.map(theme => { const owned = theme.cost === 0 || (state.unlockedThemes || []).includes(theme.id); const selected = state.theme === theme.id; return `<button data-theme="${theme.id}" data-cost="${theme.cost}" class="theme-btn p-4 rounded-xl text-left font-bold ${selected ? 'bg-indigo-600 text-white' : 'bg-gray-50 border border-gray-200 text-gray-700'}">${theme.label}${owned ? '' : `　🔒 ${theme.cost}コイン`}${selected ? '　✓ 使用中' : ''}</button>`; }).join('')}</div>`;
+  document.querySelectorAll('.theme-btn').forEach(button => button.addEventListener('click', () => selectTheme(state, button.dataset.theme, Number(button.dataset.cost))));
+}
+
+function selectTheme(state, theme, cost) {
+  const unlocked = state.unlockedThemes || [];
+  if (cost && !unlocked.includes(theme)) {
+    if ((state.coins || 0) < cost || !confirm(`${cost}コインでテーマを解放しますか？`)) return;
+    state.coins -= cost;
+    unlocked.push(theme);
+    state.unlockedThemes = unlocked;
+  }
+  state.theme = theme;
+  saveGameState(state);
+  applyTheme(state);
+  render(state, []);
+}
+
+init().catch(() => { $('menu-title').textContent = 'メニュー'; $('menu-content').textContent = 'データを読み込めませんでした。'; });
+</script>
+</body>
+</html>
