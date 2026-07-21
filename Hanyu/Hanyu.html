@@ -1787,21 +1787,15 @@ function showFakeQuestion() {
   }
   const word = fakeState.pool.pop();
   const fakeField = Math.random() < 0.5 ? 'meaning' : 'pinyin';
-  const decoy = shuffleArray(getStudyWords().filter(item => item !== word && item[fakeField] && item[fakeField] !== word[fakeField]))[0] || word;
+  const decoy = getSimilarWordOptions(word, fakeField, 1)[0] || word;
   fakeState.current = { word, decoy, fakeField };
-  const options = shuffleArray(fakeField === 'meaning'
-    ? [
-        { text: `日本語訳：${word.meaning}`, fake: false },
-        { text: `ピンイン：${word.pinyin}`, fake: false },
-        { text: `日本語訳：${decoy.meaning}`, fake: true },
-      ]
-    : [
-        { text: `日本語訳：${word.meaning}`, fake: false },
-        { text: `ピンイン：${word.pinyin}`, fake: false },
-        { text: `ピンイン：${decoy.pinyin}`, fake: true },
-      ]);
+  const fieldLabel = fakeField === 'meaning' ? '日本語訳' : 'ピンイン';
+  const options = shuffleArray([
+    { text: `${fieldLabel}：${word[fakeField]}`, fake: false },
+    { text: `${fieldLabel}：${decoy[fakeField]}`, fake: true },
+  ]);
   const progress = fakeState.mode === 'time' ? `残り ${fakeState.remaining}秒` : `残り ${fakeState.pool.length + 1}問`;
-  showGameContent(`<div class="mb-5"><h3 class="font-bold text-rose-700">🕵️ 偽物を捕まえろ</h3><p class="text-xs text-gray-500">間違った情報を1つ選んでください（${progress}）</p><div class="mt-4 text-3xl font-black text-gray-800">${escapeHtml(word.hanzi)}</div></div><div id="fake-options" class="space-y-3"></div>`);
+  showGameContent(`<div class="mb-5"><h3 class="font-bold text-rose-700">🕵️ 偽物を捕まえろ</h3><p class="text-xs text-gray-500">${fieldLabel}のうち、間違った情報を選んでください（${progress}）</p><div class="mt-4 text-3xl font-black text-gray-800">${escapeHtml(word.hanzi)}</div></div><div id="fake-options" class="space-y-3"></div>`);
   options.forEach(option => {
     const button = document.createElement('button');
     button.className = 'w-full text-left p-4 rounded-xl border border-gray-200 hover:border-rose-400 hover:bg-rose-50 font-bold transition';
@@ -1828,9 +1822,56 @@ function answerFake(isFake, button) {
   }
 }
 
-function makeChoices(answer, field) {
-  const decoys = shuffleArray(getStudyWords().filter(word => word[field] && word[field] !== answer).map(word => word[field])).slice(0, 3);
-  return shuffleArray([answer, ...decoys]);
+function normalizePinyin(value = '') {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z]/gi, '').toLowerCase();
+}
+
+function levenshteinDistance(first = '', second = '') {
+  const previous = Array.from({ length: second.length + 1 }, (_, index) => index);
+  for (let row = 1; row <= first.length; row++) {
+    let diagonal = previous[0];
+    previous[0] = row;
+    for (let column = 1; column <= second.length; column++) {
+      const above = previous[column];
+      previous[column] = Math.min(
+        previous[column] + 1,
+        previous[column - 1] + 1,
+        diagonal + (first[row - 1] === second[column - 1] ? 0 : 1),
+      );
+      diagonal = above;
+    }
+  }
+  return previous[second.length];
+}
+
+function optionSimilarityScore(answerWord, candidate, field) {
+  const answer = String(answerWord[field] || '');
+  const value = String(candidate[field] || '');
+  const lengthDifference = Math.abs(answer.length - value.length);
+  if (field === 'hanzi') {
+    const pronunciationDifference = levenshteinDistance(normalizePinyin(answerWord.pinyin), normalizePinyin(candidate.pinyin));
+    return lengthDifference * 3 + pronunciationDifference * 2;
+  }
+  if (field === 'pinyin') {
+    return lengthDifference * 2 + levenshteinDistance(normalizePinyin(answer), normalizePinyin(value)) * 2;
+  }
+  return lengthDifference * 3;
+}
+
+function getSimilarWordOptions(answerWord, field, count) {
+  const candidates = getStudyWords()
+    .filter(word => word !== answerWord && word[field] && word[field] !== answerWord[field])
+    .filter((word, index, list) => list.findIndex(item => item[field] === word[field]) === index)
+    .map(word => ({ word, score: optionSimilarityScore(answerWord, word, field) }))
+    .sort((first, second) => first.score - second.score);
+  // 上位候補内でランダムにして、似た候補だけが毎回同じ順番にならないようにする。
+  const candidatePool = candidates.slice(0, Math.max(count * 3, 8));
+  return shuffleArray(candidatePool).slice(0, count).map(item => item.word);
+}
+
+function makeChoices(answerWord, field) {
+  const decoys = getSimilarWordOptions(answerWord, field, 3).map(word => word[field]);
+  return shuffleArray([answerWord[field], ...decoys]);
 }
 
 function startListeningGame() {
@@ -1854,7 +1895,7 @@ function showListeningQuestion() {
   $('btn-play-listening').addEventListener('click', () => speak(word.hanzi));
   renderChoiceButtons(
     'listening-options',
-    makeChoices(word.hanzi, 'hanzi'),
+    makeChoices(word, 'hanzi'),
     (choice, button) => answerListening(choice === word.hanzi, button),
     'p-3 rounded-xl border border-gray-200 hover:bg-cyan-50 hover:border-cyan-400 text-left font-bold',
   );
@@ -1927,7 +1968,7 @@ function showDungeonTurn(message = '中国語の意味を選んで攻撃！') {
   area.innerHTML = `<div class="flex justify-between text-sm font-bold mb-4"><span class="text-blue-600">あなた HP ${state.playerHp}</span><span class="text-emerald-600">${enemy.icon} ${enemy.name} HP ${state.enemyHp}</span></div><p class="mb-2 text-center text-xs font-bold text-emerald-600">ステージ ${state.stage} / 3${state.stage === 3 ? '　BOSS' : ''}</p><div class="rounded-2xl bg-emerald-50 p-5 text-center"><p class="text-xs text-gray-500">${escapeHtml(message)}</p><div class="mt-3 text-3xl font-black text-gray-800">${escapeHtml(word.hanzi)}</div><div class="text-sm text-blue-500">${escapeHtml(word.pinyin)}</div></div><div id="dungeon-options" class="mt-5 grid gap-2"></div><p class="mt-3 text-center text-xs text-amber-600">コンボ ${state.combo}</p>`;
   renderChoiceButtons(
     'dungeon-options',
-    makeChoices(word.meaning, 'meaning'),
+    makeChoices(word, 'meaning'),
     (choice, button) => answerDungeon(choice === word.meaning, button),
     'p-3 rounded-xl border border-gray-200 hover:bg-emerald-50 hover:border-emerald-400 text-left font-bold',
   );
