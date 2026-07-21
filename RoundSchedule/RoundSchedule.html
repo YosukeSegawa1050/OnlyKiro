@@ -33,6 +33,12 @@ body{font-family:'Segoe UI','Noto Sans JP',sans-serif;background:var(--bg);color
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:100;opacity:0;pointer-events:none;transition:opacity .2s;}
 .modal-bg.open{opacity:1;pointer-events:auto;}
 .modal-box{background:#fff;border-radius:20px;padding:28px;width:92%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.15);}
+/* 公開版を更新するボタン */
+.refresh-app-btn{position:fixed;right:20px;bottom:20px;width:52px;height:52px;border:1px solid rgba(255,255,255,.8);border-radius:50%;background:rgba(37,99,235,.78);color:#fff;font-size:24px;line-height:1;box-shadow:0 4px 16px rgba(37,99,235,.28);backdrop-filter:blur(8px);cursor:pointer;z-index:50;transition:transform .2s,background .2s;}
+.refresh-app-btn:hover{background:rgba(37,99,235,.95);transform:scale(1.06);}
+.refresh-app-btn:active{transform:scale(.94);}
+.refresh-app-btn.updating{animation:refresh-spin .8s linear infinite;pointer-events:none;}
+@keyframes refresh-spin{to{transform:rotate(360deg);}}
 /* レスポンシブ */
 @media(min-width:768px){
   .app-layout{display:grid;grid-template-columns:1fr 380px;gap:24px;align-items:start;}
@@ -85,6 +91,8 @@ body{font-family:'Segoe UI','Noto Sans JP',sans-serif;background:var(--bg);color
     </div>
   </div>
 </div>
+
+<button id="btn-refresh-app" class="refresh-app-btn" type="button" aria-label="公開済みの最新バージョンへ更新" title="最新バージョンへ更新">↻</button>
 
 <!-- ===== タスク追加モーダル ===== -->
 <div id="modal-task" class="modal-bg">
@@ -470,6 +478,23 @@ document.getElementById('btn-cat-save').addEventListener('click', () => {
 // モーダル背景クリックで閉じる
 document.querySelectorAll('.modal-bg').forEach(el => {
   el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
+});
+
+// ========== 公開済みアプリの更新 ==========
+document.getElementById('btn-refresh-app').addEventListener('click', async () => {
+  const button = document.getElementById('btn-refresh-app');
+  button.classList.add('updating');
+  button.setAttribute('aria-label', '最新バージョンを確認中');
+
+  try {
+    if ('serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.getRegistration();
+      if (registration) await registration.update();
+    }
+  } catch (e) {
+    // 更新確認に失敗しても通常の再読み込みを行う
+  }
+  window.location.reload();
 });
 
 // ========== 全体描画 ==========
