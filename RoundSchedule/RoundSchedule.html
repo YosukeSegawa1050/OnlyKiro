@@ -105,7 +105,7 @@ body{font-family:'Segoe UI','Noto Sans JP',sans-serif;background:var(--bg);color
         <label class="text-xs font-semibold text-gray-500">タスク名</label>
         <input id="inp-task-name" type="text" placeholder="例：ミーティング" class="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"/>
       </div>
-      <div class="grid grid-cols-2 gap-3">
+      <div class="grid grid-cols-2 gap-5">
         <div>
           <label class="text-xs font-semibold text-gray-500">開始</label>
           <input id="inp-start" type="time" class="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"/>
@@ -120,6 +120,7 @@ body{font-family:'Segoe UI','Noto Sans JP',sans-serif;background:var(--bg);color
         <select id="inp-category" class="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"></select>
       </div>
       <div id="modal-task-err" class="text-xs text-red-500 hidden"></div>
+      <button id="btn-modal-delete" class="hidden w-full py-2 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 font-bold text-sm transition">予定を削除</button>
       <div class="flex gap-2 mt-2">
         <button id="btn-modal-cancel" class="flex-1 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm transition">キャンセル</button>
         <button id="btn-modal-save" class="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm transition">追加</button>
@@ -326,23 +327,21 @@ function renderTaskList() {
   sorted.forEach(task => {
     const cat = state.categories.find(c => c.id === task.categoryId);
     const div = document.createElement('div');
-    div.className = 'flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 transition group';
+    div.className = 'flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 transition cursor-pointer';
+    div.setAttribute('role', 'button');
+    div.setAttribute('tabindex', '0');
     div.innerHTML = `
       <span class="cat-dot" style="background:${cat?cat.color:'#9ca3af'}"></span>
       <div class="flex-1 min-w-0">
         <div class="text-xs font-semibold text-gray-800 truncate">${task.name}</div>
         <div class="text-xs text-gray-400">${minutesToTime(task.startMin)} ~ ${minutesToTime(task.endMin)}</div>
       </div>
-      <button class="text-gray-300 hover:text-red-400 text-sm opacity-0 group-hover:opacity-100 transition" data-del="${task.id}">✕</button>
     `;
-    list.appendChild(div);
-  });
-
-  list.querySelectorAll('[data-del]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      state.tasks = state.tasks.filter(t => t.id !== btn.dataset.del);
-      saveState(); renderAll();
+    div.addEventListener('click', () => openTaskModal(task.id));
+    div.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openTaskModal(task.id); }
     });
+    list.appendChild(div);
   });
 }
 
@@ -411,6 +410,7 @@ function openTaskModal(taskId = null) {
   const task = taskId ? state.tasks.find(t => t.id === taskId) : null;
   document.getElementById('task-modal-title').textContent = task ? '予定を編集' : 'タスクを追加';
   document.getElementById('btn-modal-save').textContent = task ? '更新' : '追加';
+  document.getElementById('btn-modal-delete').classList.toggle('hidden', !task);
   document.getElementById('inp-task-name').value = task ? task.name : '';
   document.getElementById('inp-start').value = task ? minutesToTime(task.startMin) : '';
   document.getElementById('inp-end').value = task ? minutesToTime(task.endMin) : '';
@@ -434,6 +434,16 @@ function overlapsExisting(start, end, ignoredTaskId) {
 
 document.getElementById('btn-add-task').addEventListener('click', () => openTaskModal());
 document.getElementById('btn-modal-cancel').addEventListener('click', () => { editingTaskId = null; closeModal('modal-task'); });
+document.getElementById('btn-modal-delete').addEventListener('click', () => {
+  const task = state.tasks.find(t => t.id === editingTaskId);
+  if (!task || !window.confirm(`「${task.name}」を削除しますか？`)) return;
+  state.tasks = state.tasks.filter(t => t.id !== editingTaskId);
+  editingTaskId = null;
+  saveState();
+  closeModal('modal-task');
+  renderAll();
+  scheduleNotifications();
+});
 document.getElementById('btn-modal-save').addEventListener('click', () => {
   const name = document.getElementById('inp-task-name').value.trim();
   const start = document.getElementById('inp-start').value;
@@ -542,9 +552,11 @@ function dateFromKey(key) {
 function showSelectedDate() {
   const d = dateFromKey(selectedDate);
   const days = ['日','月','火','水','木','金','土'];
-  const suffix = selectedDate === localDateKey() ? '・今日' : '';
+  const isToday = selectedDate === localDateKey();
+  const suffix = isToday ? '・今日' : '';
   document.getElementById('today-date').textContent =
     `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${days[d.getDay()]}）${suffix}`;
+  document.getElementById('btn-today').textContent = isToday ? '今日' : `${d.getMonth()+1}月${d.getDate()}日`;
 }
 
 function moveSelectedDate(days) {
