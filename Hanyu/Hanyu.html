@@ -1826,6 +1826,10 @@ function normalizePinyin(value = '') {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z]/gi, '').toLowerCase();
 }
 
+function extractDigits(value = '') {
+  return (String(value).normalize('NFKC').match(/\d+/g) || []).join(',');
+}
+
 function levenshteinDistance(first = '', second = '') {
   const previous = Array.from({ length: second.length + 1 }, (_, index) => index);
   for (let row = 1; row <= first.length; row++) {
@@ -1848,14 +1852,17 @@ function optionSimilarityScore(answerWord, candidate, field) {
   const answer = String(answerWord[field] || '');
   const value = String(candidate[field] || '');
   const lengthDifference = Math.abs(answer.length - value.length);
+  const answerDigits = extractDigits(answer);
+  // 正解に数字があるときは、同じ数字を含む候補を文字数・発音より優先する。
+  const digitPenalty = answerDigits && extractDigits(value) !== answerDigits ? 1000 : 0;
   if (field === 'hanzi') {
     const pronunciationDifference = levenshteinDistance(normalizePinyin(answerWord.pinyin), normalizePinyin(candidate.pinyin));
-    return lengthDifference * 3 + pronunciationDifference * 2;
+    return digitPenalty + lengthDifference * 3 + pronunciationDifference * 2;
   }
   if (field === 'pinyin') {
-    return lengthDifference * 2 + levenshteinDistance(normalizePinyin(answer), normalizePinyin(value)) * 2;
+    return digitPenalty + lengthDifference * 2 + levenshteinDistance(normalizePinyin(answer), normalizePinyin(value)) * 2;
   }
-  return lengthDifference * 3;
+  return digitPenalty + lengthDifference * 3;
 }
 
 function getSimilarWordOptions(answerWord, field, count) {
