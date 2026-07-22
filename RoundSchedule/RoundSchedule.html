@@ -39,6 +39,8 @@ body{font-family:'Segoe UI','Noto Sans JP',sans-serif;background:var(--bg);color
 .refresh-app-btn:active{transform:scale(.94);}
 .refresh-app-btn.updating{animation:refresh-spin .8s linear infinite;pointer-events:none;}
 @keyframes refresh-spin{to{transform:rotate(360deg);}}
+.go-today-btn{position:absolute;top:8px;right:8px;padding:7px 10px;border:0;border-radius:999px;background:#2563eb;color:#fff;font-size:12px;font-weight:700;box-shadow:0 2px 8px rgba(37,99,235,.28);cursor:pointer;z-index:2;}
+.calendar-picker{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;}
 /* レスポンシブ */
 @media(min-width:768px){
   .app-layout{display:grid;grid-template-columns:1fr 380px;gap:24px;align-items:start;}
@@ -48,10 +50,14 @@ body{font-family:'Segoe UI','Noto Sans JP',sans-serif;background:var(--bg);color
 <body class="p-4 sm:p-6 lg:p-8">
 
 <!-- ===== アプリヘッダー ===== -->
-<header class="max-w-5xl mx-auto mb-6">
+<header class="max-w-5xl mx-auto flex items-start justify-between mb-6">
   <div>
     <h1 class="text-xl font-bold tracking-tight">📅 Daily Schedule</h1>
     <p id="today-date" class="text-xs text-gray-400 mt-0.5"></p>
+  </div>
+  <div class="relative">
+    <button id="btn-calendar" class="p-2 text-xl leading-none text-blue-600 hover:bg-blue-50 rounded-xl transition" type="button" aria-label="日付を選択" title="日付を選択">🗓️</button>
+    <input id="inp-calendar" class="calendar-picker" type="date" aria-label="表示する日付を選択"/>
   </div>
 </header>
 
@@ -67,6 +73,7 @@ body{font-family:'Segoe UI','Noto Sans JP',sans-serif;background:var(--bg);color
     </div>
     <div class="chart-container" id="chart-container">
       <svg id="chart-svg" viewBox="0 0 400 400"></svg>
+      <button id="btn-go-today" class="go-today-btn hidden" type="button">今日へ</button>
     </div>
     <button id="btn-add-task" class="mt-4 w-full py-3 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold rounded-xl shadow transition active:scale-[.98]">
       ＋ タスク追加
@@ -556,7 +563,8 @@ function showSelectedDate() {
   const suffix = isToday ? '・今日' : '';
   document.getElementById('today-date').textContent =
     `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${days[d.getDay()]}）${suffix}`;
-  document.getElementById('btn-today').textContent = isToday ? '今日' : `${d.getMonth()+1}月${d.getDate()}日`;
+  document.getElementById('btn-today').textContent = `${d.getMonth()+1}月${d.getDate()}日（${days[d.getDay()]}）`;
+  document.getElementById('btn-go-today').classList.toggle('hidden', isToday);
 }
 
 function moveSelectedDate(days) {
@@ -570,6 +578,23 @@ document.getElementById('btn-prev-day').addEventListener('click', () => moveSele
 document.getElementById('btn-next-day').addEventListener('click', () => moveSelectedDate(1));
 document.getElementById('btn-today').addEventListener('click', () => {
   selectedDate = localDateKey();
+  renderAll();
+});
+document.getElementById('btn-go-today').addEventListener('click', () => {
+  selectedDate = localDateKey();
+  renderAll();
+});
+
+// ヘッダーのカレンダーから任意の日付へ移動
+const calendarInput = document.getElementById('inp-calendar');
+document.getElementById('btn-calendar').addEventListener('click', () => {
+  calendarInput.value = selectedDate;
+  if (typeof calendarInput.showPicker === 'function') calendarInput.showPicker();
+  else calendarInput.click();
+});
+calendarInput.addEventListener('change', () => {
+  if (!calendarInput.value) return;
+  selectedDate = calendarInput.value;
   renderAll();
 });
 
