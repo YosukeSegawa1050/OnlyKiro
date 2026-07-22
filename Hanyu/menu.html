@@ -47,6 +47,37 @@ function applyTheme(state) {
   document.body.dataset.theme = state.theme || 'default';
 }
 
+function getBadgeDefinitions(state) {
+  const stats = Object.values(state.stats || {});
+  const correct = stats.reduce((total, stat) => total + (stat.correct || 0), 0);
+  const attempts = stats.reduce((total, stat) => total + (stat.correct || 0) + (stat.wrong || 0), 0);
+  const studiedWords = stats.filter(stat => (stat.correct || 0) + (stat.wrong || 0) > 0).length;
+  const formats = new Set(stats.flatMap(stat => stat.formats || [])).size;
+  const wanted = state.wanted || { progress: {}, wordIds: [] };
+  const captured = (wanted.wordIds || []).filter(id => (wanted.progress[id] || []).length >= 3).length;
+  const badge = (id, icon, label, description, current, target) => ({
+    id, icon, label, description, current, target, unlocked: current >= target,
+  });
+  return [
+    badge('first-step', '🌱', 'はじめの一歩', 'EXPを10獲得する', state.xp || 0, 10),
+    badge('three-day-streak', '🔥', '3日連続', '3日連続でゲームを完了する', state.streak || 0, 3),
+    badge('wanted-complete', '🎯', '本日の指名手配制覇', '今日の指名手配単語を3語すべて捕獲する', captured, 3),
+    badge('coin-collector', '💰', 'コイン収集家', 'COINを30枚所持する', state.coins || 0, 30),
+    badge('learning-master', '⭐', '学習の達人', 'EXPを100獲得する', state.xp || 0, 100),
+    badge('fifty-challenges', '📘', '挑戦者', '問題に50回回答する', attempts, 50),
+    badge('correct-master', '🧠', '正答名人', '問題に100回正解する', correct, 100),
+    badge('word-collector', '🗂️', '単語コレクター', '20語以上を学習する', studiedWords, 20),
+    badge('format-master', '🎭', '出題形式マスター', '5種類の出題形式で正解する', formats, 5),
+    badge('weekly-streak', '📅', '一週間継続', '7日連続でゲームを完了する', state.streak || 0, 7),
+    badge('veteran', '👑', 'ベテラン学習者', 'EXPを500獲得する', state.xp || 0, 500),
+    badge('hundred-challenges', '🏹', '百戦錬磨', '問題に100回回答する', attempts, 100),
+  ];
+}
+
+function renderBadgeDetail(badge) {
+  $('badge-detail').innerHTML = `<div class="rounded-xl border p-4 ${badge.unlocked ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-gray-200 bg-gray-50 text-gray-700'}"><p class="font-bold text-lg">${badge.icon} ${escapeHtml(badge.label)}</p><p class="mt-1 text-sm">達成内容：${escapeHtml(badge.description)}</p><p class="mt-2 text-sm font-bold">進捗：${badge.current} / ${badge.target}${badge.unlocked ? '　✓ 獲得済み' : ''}</p></div>`;
+}
+
 async function init() {
   const state = loadGameState();
   applyTheme(state);
@@ -71,10 +102,12 @@ function render(state, words) {
   }
   if (view === 'badges') {
     $('menu-title').textContent = '🏅 バッジ';
-    const wanted = state.wanted || { progress: {}, wordIds: [] };
-    const captured = (wanted.wordIds || []).filter(id => (wanted.progress[id] || []).length >= 3).length;
-    const badges = [['🌱','はじめの一歩', state.xp >= 10], ['🔥','3日連続', state.streak >= 3], ['🎯','指名手配制覇', captured >= 3], ['💰','コイン収集家', state.coins >= 30], ['⭐','学習の達人', state.xp >= 100]];
-    content.innerHTML = `<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">${badges.map(([icon, label, unlocked]) => `<div class="rounded-xl p-4 ${unlocked ? 'bg-amber-50 border border-amber-200 text-amber-700' : 'bg-gray-50 text-gray-400'}"><b class="text-lg">${icon} ${label}</b><p class="mt-1 text-xs">${unlocked ? '獲得済み' : '未獲得 🔒'}</p></div>`).join('')}</div>`;
+    const badges = getBadgeDefinitions(state);
+    content.innerHTML = `<p class="mb-4 text-sm text-gray-500">バッジをタップすると、達成内容と進捗を確認できます。</p><div class="grid grid-cols-1 sm:grid-cols-2 gap-3">${badges.map(badge => `<button data-badge-id="${badge.id}" class="badge-btn rounded-xl p-4 text-left transition active:scale-[.98] ${badge.unlocked ? 'bg-amber-50 border border-amber-200 text-amber-700' : 'bg-gray-50 text-gray-400 border border-gray-100'}"><b class="text-lg">${badge.icon} ${escapeHtml(badge.label)}</b><p class="mt-1 text-xs">${badge.unlocked ? '獲得済み　✓' : '未獲得　🔒'}</p></button>`).join('')}</div><div id="badge-detail" class="mt-4"></div>`;
+    document.querySelectorAll('.badge-btn').forEach(button => button.addEventListener('click', () => {
+      renderBadgeDetail(badges.find(badge => badge.id === button.dataset.badgeId));
+    }));
+    renderBadgeDetail(badges.find(badge => badge.unlocked) || badges[0]);
     return;
   }
   $('menu-title').textContent = '⚙️ 設定';
