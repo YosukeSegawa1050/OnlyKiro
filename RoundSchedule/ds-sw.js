@@ -1,4 +1,4 @@
-const CACHE_NAME = 'daily-schedule-v3';
+const CACHE_NAME = 'daily-schedule-v4';
 const ASSETS = ['./RoundSchedule.html', './ds-manifest.json', './icon-512.png'];
 
 self.addEventListener('install', e => {
