@@ -74,8 +74,9 @@ function getBadgeDefinitions(state) {
   ];
 }
 
-function renderBadgeDetail(badge) {
-  $('badge-detail').innerHTML = `<div class="rounded-xl border p-4 ${badge.unlocked ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-gray-200 bg-gray-50 text-gray-700'}"><p class="font-bold text-lg">${badge.icon} ${escapeHtml(badge.label)}</p><p class="mt-1 text-sm">達成内容：${escapeHtml(badge.description)}</p><p class="mt-2 text-sm font-bold">進捗：${badge.current} / ${badge.target}${badge.unlocked ? '　✓ 獲得済み' : ''}</p></div>`;
+function renderBadgeDetail(container, badge) {
+  container.innerHTML = `<div class="rounded-lg border p-3 ${badge.unlocked ? 'border-amber-200 bg-white/70 text-amber-800' : 'border-gray-200 bg-white/70 text-gray-700'}"><p class="text-sm">達成内容：${escapeHtml(badge.description)}</p><p class="mt-1 text-sm font-bold">進捗：${badge.current} / ${badge.target}${badge.unlocked ? '　✓ 獲得済み' : ''}</p></div>`;
+  container.classList.remove('hidden');
 }
 
 async function init() {
@@ -103,11 +104,22 @@ function render(state, words) {
   if (view === 'badges') {
     $('menu-title').textContent = '🏅 バッジ';
     const badges = getBadgeDefinitions(state);
-    content.innerHTML = `<p class="mb-4 text-sm text-gray-500">バッジをタップすると、達成内容と進捗を確認できます。</p><div class="grid grid-cols-1 sm:grid-cols-2 gap-3">${badges.map(badge => `<button data-badge-id="${badge.id}" class="badge-btn rounded-xl p-4 text-left transition active:scale-[.98] ${badge.unlocked ? 'bg-amber-50 border border-amber-200 text-amber-700' : 'bg-gray-50 text-gray-400 border border-gray-100'}"><b class="text-lg">${badge.icon} ${escapeHtml(badge.label)}</b><p class="mt-1 text-xs">${badge.unlocked ? '獲得済み　✓' : '未獲得　🔒'}</p></button>`).join('')}</div><div id="badge-detail" class="mt-4"></div>`;
+    content.innerHTML = `<p class="mb-4 text-sm text-gray-500">バッジをタップすると、すぐ下に達成内容と進捗を表示します。</p><div class="grid grid-cols-2 sm:grid-cols-3 gap-3">${badges.map(badge => `<div class="aspect-square rounded-xl ${badge.unlocked ? 'bg-amber-50 border border-amber-200 text-amber-700' : 'bg-gray-50 text-gray-400 border border-gray-100'}"><button data-badge-id="${badge.id}" class="badge-btn w-full h-full p-3 text-center flex flex-col items-center justify-center transition active:scale-[.98]"><b class="text-base leading-tight">${badge.icon}<span class="block mt-1">${escapeHtml(badge.label)}</span></b><p class="mt-2 text-xs">${badge.unlocked ? '獲得済み　✓' : '未獲得　🔒'}</p></button><div class="badge-inline-detail hidden mx-3 mb-3"></div></div>`).join('')}</div>`;
     document.querySelectorAll('.badge-btn').forEach(button => button.addEventListener('click', () => {
-      renderBadgeDetail(badges.find(badge => badge.id === button.dataset.badgeId));
+      const detail = button.nextElementSibling;
+      const wasOpen = !detail.classList.contains('hidden');
+      document.querySelectorAll('.badge-inline-detail').forEach(item => {
+        item.classList.add('hidden');
+        item.innerHTML = '';
+        item.parentElement.classList.add('aspect-square');
+        item.parentElement.querySelector('.badge-btn').classList.add('h-full');
+      });
+      if (!wasOpen) {
+        button.parentElement.classList.remove('aspect-square');
+        button.classList.remove('h-full');
+        renderBadgeDetail(detail, badges.find(badge => badge.id === button.dataset.badgeId));
+      }
     }));
-    renderBadgeDetail(badges.find(badge => badge.unlocked) || badges[0]);
     return;
   }
   $('menu-title').textContent = '⚙️ 設定';
