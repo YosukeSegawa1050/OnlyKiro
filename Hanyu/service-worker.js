@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'hanyu-v37';
+const CACHE_NAME = 'hanyu-v38';
 const ASSETS_TO_CACHE = [
   './',
   './Hanyu.html',
@@ -37,13 +37,19 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   // クエリパラメータを除いたURLでキャッシュを管理
   const url = new URL(event.request.url);
+  // ログイン画面・ログアウト処理は常にネットワークから取得する。
+  if (url.pathname === '/login' || url.pathname === '/logout') return;
   url.search = ''; // キャッシュバスティングのパラメータを除去
   const cleanRequest = new Request(url.toString(), { method: event.request.method });
 
   event.respondWith(
     fetch(event.request).then(networkResponse => {
       // ネットワーク成功 → キャッシュを更新（クリーンURLで保存）
-      if (event.request.method === 'GET' && event.request.url.startsWith(self.location.origin)) {
+      if (event.request.method === 'GET'
+        && event.request.url.startsWith(self.location.origin)
+        && networkResponse.ok
+        && !networkResponse.redirected
+        && new URL(networkResponse.url).pathname !== '/login') {
         const responseClone = networkResponse.clone();
         caches.open(CACHE_NAME).then(cache => {
           cache.put(cleanRequest, responseClone);
