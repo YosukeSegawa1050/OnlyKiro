@@ -1,5 +1,5 @@
-const AUTH_USERNAME = 'hanyu-owner';
-const AUTH_PASSWORD_HASH = '0b1d18d9d25c5bf740d999b2e82839a3396d89d6e5d1c84cd5df9a70617a154b';
+const AUTH_USERNAME = 'Yosuke';
+const AUTH_PASSWORD_HASH = '08e2d71f4bfe9ffc3448f87a32888b4f292aec6d35a523a47124ba0ac847338c';
 const SESSION_COOKIE = 'hanyu_auth';
 
 function getCookie(request, name) {
