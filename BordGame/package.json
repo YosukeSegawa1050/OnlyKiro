@@ -1,0 +1,20 @@
+{
+  "name": "prison-lab",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PCとスマートフォンで遊ぶリアルタイム監獄心理戦ボードゲーム",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "qrcode": "^1.5.4",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.1"
+  }
+}

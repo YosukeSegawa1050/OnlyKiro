@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>PRISON LAB — 囚人端末</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body class="scanlines min-h-screen pb-8">
+  <div class="hazard-line"></div>
+  <header class="sticky top-0 z-40 border-b border-amber-900/40 bg-[#0b0d0f]/95 px-4 py-3 backdrop-blur">
+    <div class="mx-auto flex max-w-2xl items-center justify-between gap-3">
+      <div>
+        <p id="identity" class="font-mono text-sm font-black text-amber-400">認証中…</p>
+        <p id="player-name" class="text-xs text-stone-500"></p>
+      </div>
+      <div class="text-center">
+        <p id="day" class="text-xs font-bold">DAY —</p>
+        <p id="phase" class="text-[11px] text-stone-500">接続待機</p>
+      </div>
+      <div id="connection" class="flex items-center gap-1 text-xs text-stone-400">
+        <span class="status-dot bg-amber-400"></span><span>接続中</span>
+      </div>
+    </div>
+  </header>
+
+  <main id="player-app" class="mx-auto max-w-2xl p-4">
+    <section class="mb-4 grid grid-cols-3 gap-2">
+      <div class="lab-panel p-3 text-center"><p class="lab-label">評価</p><p id="evaluation" class="mt-1 text-2xl font-black">—</p><p id="evaluation-band" class="text-[10px] text-amber-400">—</p></div>
+      <div class="lab-panel p-3 text-center"><p class="lab-label">ストレス</p><p id="stress" class="mt-1 text-2xl font-black">—</p><p id="stress-band" class="text-[10px] text-amber-400">—</p></div>
+      <div class="lab-panel p-3 text-center"><p class="lab-label">疑惑度</p><p id="suspicion" class="mt-1 text-2xl font-black">—</p><p id="suspicion-band" class="text-[10px] text-amber-400">—</p></div>
+    </section>
+
+    <section class="lab-panel mb-4 p-3">
+      <div class="mb-2 flex justify-between"><p class="lab-label">Prison order</p><b id="order">—</b></div>
+      <div class="order-track"><div id="order-fill" class="order-fill"></div></div>
+    </section>
+
+    <a href="/rules" target="_blank" rel="noopener" class="btn btn-ghost mb-4 flex w-full items-center justify-center text-sm">ゲームルールを確認</a>
+
+    <section id="discard-warning" class="mb-4 hidden border border-red-700 bg-red-950/20 p-4"></section>
+    <section id="private-panel" class="private-box mb-4 hidden p-4"></section>
+    <section id="action-panel" class="lab-panel mb-4 p-4"></section>
+
+    <section class="lab-panel p-4">
+      <div class="mb-3 flex items-center justify-between">
+        <div><p class="lab-label">Personal inventory</p><h2 class="mt-1 font-black">手札</h2></div>
+        <span id="card-count" class="font-mono text-sm text-stone-500">0 / 5</span>
+      </div>
+      <div id="cards" class="card-strip"></div>
+    </section>
+  </main>
+
+  <dialog id="confirm-dialog" class="p-0">
+    <div class="hazard-line"></div>
+    <div class="p-6">
+      <p class="lab-label">Final confirmation</p>
+      <h2 data-title class="mt-2 text-xl font-black"></h2>
+      <p data-body class="mt-3 whitespace-pre-line text-sm leading-6 text-stone-400"></p>
+      <p class="mt-3 text-xs text-red-300">確定後は変更できません。</p>
+      <div class="mt-6 grid grid-cols-2 gap-2">
+        <button data-cancel class="btn btn-ghost">戻る</button>
+        <button data-confirm class="btn btn-green">確定</button>
+      </div>
+    </div>
+  </dialog>
+  <div id="toasts" class="fixed right-4 top-20 z-[100] grid w-[min(360px,calc(100%-2rem))] gap-2"></div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/js/player.js"></script>
+</body>
+</html>

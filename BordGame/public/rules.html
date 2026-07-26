@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>PRISON LAB — ゲームルール</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body class="scanlines min-h-screen pb-16">
+  <div class="hazard-line"></div>
+  <header class="sticky top-0 z-40 border-b border-amber-900/40 bg-[#0b0d0f]/95 px-4 py-3 backdrop-blur">
+    <div class="mx-auto flex max-w-5xl items-center justify-between gap-3">
+      <div>
+        <p class="lab-label">Experiment handbook / 017</p>
+        <h1 class="text-xl font-black">PRISON <span class="text-amber-500">LAB</span> ルール</h1>
+      </div>
+      <button class="btn btn-ghost px-4 text-sm" onclick="history.length > 1 ? history.back() : location.href='/'">画面に戻る</button>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-5xl p-4 sm:p-6">
+    <section class="lab-panel p-5 sm:p-8">
+      <p class="lab-label">Mission</p>
+      <h2 class="mt-2 text-3xl font-black text-stone-100">評価を獲得し、監獄から生還せよ。</h2>
+      <p class="mt-4 max-w-3xl text-sm leading-7 text-stone-400">
+        4人の囚人が4日間の心理実験へ参加します。協力すれば監獄は安定しますが、正規に釈放されるのは原則2人だけです。
+        評価の低い囚人には、秘密の「脱獄」という別ルートが提示されることがあります。
+      </p>
+      <div class="mt-6 grid gap-3 sm:grid-cols-3">
+        <div class="border border-stone-800 p-4"><p class="lab-label">Players</p><p class="mt-1 text-xl font-black">4人固定</p><p class="mt-1 text-xs text-stone-500">CPUは最大3人</p></div>
+        <div class="border border-stone-800 p-4"><p class="lab-label">Days</p><p class="mt-1 text-xl font-black">全4日間</p><p class="mt-1 text-xs text-stone-500">毎日異なる心理実験</p></div>
+        <div class="border border-stone-800 p-4"><p class="lab-label">Winners</p><p class="mt-1 text-xl font-black">通常は上位2人</p><p class="mt-1 text-xs text-stone-500">脱獄成功時は計画者のみ</p></div>
+      </div>
+    </section>
+
+    <nav class="lab-panel mt-4 grid grid-cols-2 gap-2 p-4 text-center text-sm sm:grid-cols-4">
+      <a class="btn btn-ghost flex items-center justify-center" href="#flow">ゲーム進行</a>
+      <a class="btn btn-ghost flex items-center justify-center" href="#experiments">心理実験</a>
+      <a class="btn btn-ghost flex items-center justify-center" href="#night">夜間・カード</a>
+      <a class="btn btn-ghost flex items-center justify-center" href="#escape">脱獄・勝利</a>
+    </nav>
+
+    <section id="flow" class="lab-panel mt-4 p-5 sm:p-8">
+      <p class="lab-label">Daily procedure</p>
+      <h2 class="mt-2 text-2xl font-black">1日の進行</h2>
+      <ol class="mt-5 grid gap-2 text-sm sm:grid-cols-2">
+        <li class="border-l-2 border-amber-600 bg-black/20 p-3"><b class="text-amber-300">1.</b> 朝の看守放送と心理実験説明</li>
+        <li class="border-l-2 border-amber-600 bg-black/20 p-3"><b class="text-amber-300">2.</b> 準備・通常カードの使用</li>
+        <li class="border-l-2 border-amber-600 bg-black/20 p-3"><b class="text-amber-300">3.</b> スマホから心理実験へ秘密回答</li>
+        <li class="border-l-2 border-amber-600 bg-black/20 p-3"><b class="text-amber-300">4.</b> 中央画面で回答と結果を公開</li>
+        <li class="border-l-2 border-amber-600 bg-black/20 p-3"><b class="text-amber-300">5.</b> 夜間行動を1つ秘密に選択</li>
+        <li class="border-l-2 border-amber-600 bg-black/20 p-3"><b class="text-amber-300">6.</b> 夜間事件・評価順位を発表</li>
+      </ol>
+      <div class="mt-6 grid gap-3 sm:grid-cols-4">
+        <div class="border border-stone-800 p-3"><p class="lab-label">評価 0–100</p><p class="mt-1 text-sm">正確な値は本人だけ。最終順位へ影響。</p></div>
+        <div class="border border-stone-800 p-3"><p class="lab-label">ストレス 0–10</p><p class="mt-1 text-sm">10で評価−5、8へ戻り、カード1枚喪失。</p></div>
+        <div class="border border-stone-800 p-3"><p class="lab-label">疑惑度 0–10</p><p class="mt-1 text-sm">8以上で身体検査。最終審査でも不利。</p></div>
+        <div class="border border-stone-800 p-3"><p class="lab-label">監獄秩序 0–100</p><p class="mt-1 text-sm">低いほど全員へ日末ペナルティ。</p></div>
+      </div>
+    </section>
+
+    <section id="experiments" class="lab-panel mt-4 p-5 sm:p-8">
+      <p class="lab-label">Four experiments</p>
+      <h2 class="mt-2 text-2xl font-black">4日間の心理実験</h2>
+      <div class="mt-5 grid gap-3">
+        <details open class="border border-stone-800 bg-black/20 p-4">
+          <summary class="cursor-pointer font-black text-amber-300">DAY 1：囚人のジレンマ</summary>
+          <p class="mt-3 text-sm leading-6 text-stone-400">ランダムな2人組で「協力」か「裏切り」を選びます。両者協力は全体に有利。相手だけが協力したときの裏切りは高評価ですが、相手のストレスと監獄秩序を悪化させます。</p>
+        </details>
+        <details class="border border-stone-800 bg-black/20 p-4">
+          <summary class="cursor-pointer font-black text-amber-300">DAY 2：配給食実験</summary>
+          <p class="mt-3 text-sm leading-6 text-stone-400">全体で6個の配給に対し、各自0〜3個を要求します。合計6以下なら成功。7以上なら全員の評価と秩序が下がり、最多要求者は疑惑度が増えます。</p>
+        </details>
+        <details class="border border-stone-800 bg-black/20 p-4">
+          <summary class="cursor-pointer font-black text-amber-300">DAY 3：赤白帽子実験</summary>
+          <p class="mt-3 text-sm leading-6 text-stone-400">自分以外の帽子を見て、自分の色を「赤」「白」「分からない」から選択します。1人以上が正解し、不正解者が0人なら成功です。相談は口頭で行います。</p>
+        </details>
+        <details class="border border-stone-800 bg-black/20 p-4">
+          <summary class="cursor-pointer font-black text-amber-300">DAY 4：信頼投資実験</summary>
+          <p class="mt-3 text-sm leading-6 text-stone-400">送金者が0〜5トークンを送り、3倍になった額から受取人が返却します。最終保有トークンと5との差が評価へ変換されます。</p>
+        </details>
+      </div>
+    </section>
+
+    <section id="night" class="lab-panel mt-4 p-5 sm:p-8">
+      <p class="lab-label">Night operations</p>
+      <h2 class="mt-2 text-2xl font-black">夜間行動とカード</h2>
+      <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div class="border border-stone-800 p-3"><b>休息</b><p class="mt-1 text-xs text-stone-400">ストレスを2減らす。</p></div>
+        <div class="border border-stone-800 p-3"><b>物資を探す</b><p class="mt-1 text-xs text-stone-400">カード1枚を得て、疑惑度＋1。</p></div>
+        <div class="border border-stone-800 p-3"><b>密告</b><p class="mt-1 text-xs text-stone-400">自分の評価＋4、対象の疑惑度＋2。</p></div>
+        <div class="border border-stone-800 p-3"><b>観察</b><p class="mt-1 text-xs text-stone-400">対象の状態に関する情報を1つ得る。</p></div>
+        <div class="border border-stone-800 p-3"><b>カードを渡す</b><p class="mt-1 text-xs text-stone-400">手札1枚を対象へ秘密に渡す。</p></div>
+        <div class="border border-red-900/70 p-3"><b class="text-red-300">脱獄準備</b><p class="mt-1 text-xs text-stone-400">計画者限定。カードを使い準備を進める。</p></div>
+      </div>
+      <p class="mt-5 text-sm leading-6 text-stone-400">
+        初期手札は2枚、上限は5枚です。通常効果は準備または夜間に1日1枚まで使用できます。
+        カードは医薬品、囚人服の糸、看守の巡回記録、鍵の型、配線、金属製スプーンの6種類です。
+      </p>
+      <div class="mt-4 border border-amber-900/60 bg-amber-950/10 p-4 text-sm">
+        <b class="text-amber-300">監獄秩序の日末ペナルティ：</b>
+        50未満で全員のストレス＋1、30未満でさらに評価−5、15未満でさらにカード1枚喪失。
+      </div>
+    </section>
+
+    <section id="escape" class="lab-panel mt-4 p-5 sm:p-8">
+      <p class="lab-label text-red-400">Classified route</p>
+      <h2 class="mt-2 text-2xl font-black">秘密の脱獄と勝利条件</h2>
+      <p class="mt-4 text-sm leading-7 text-stone-400">
+        2日目終了後、最下位、評価42以下、またはストレス7以上の囚人へ秘密の提案が届きます。
+        「別の出口を探す」を選んだ候補のうち1人だけが脱獄計画者になります。計画者はカードを使い、
+        「経路」「突破手段」「タイミング」の3カテゴリーと補強を準備します。
+      </p>
+      <div class="mt-5 grid gap-3 sm:grid-cols-3">
+        <div class="border border-red-900/60 p-4"><p class="lab-label">地下通路</p><p class="mt-1 font-black">経路</p><p class="mt-2 text-xs text-stone-500">阻止：地下通路を封鎖</p></div>
+        <div class="border border-red-900/60 p-4"><p class="lab-label">配給搬入口</p><p class="mt-1 font-black">突破手段</p><p class="mt-2 text-xs text-stone-500">阻止：電子錠を復旧</p></div>
+        <div class="border border-red-900/60 p-4"><p class="lab-label">医療搬送口</p><p class="mt-1 font-black">タイミング</p><p class="mt-2 text-xs text-stone-500">阻止：医療搬送口を監視</p></div>
+      </div>
+      <div class="mt-5 grid gap-3 sm:grid-cols-3">
+        <div class="border border-emerald-900/60 bg-emerald-950/10 p-4"><b class="text-emerald-300">通常釈放</b><p class="mt-2 text-sm">最終評価上位2人が勝利。疑惑度8以上は最終評価−15。</p></div>
+        <div class="border border-red-900/60 bg-red-950/10 p-4"><b class="text-red-300">脱獄成功</b><p class="mt-2 text-sm">脱獄計画者だけが勝利。通常の釈放審査は中止。</p></div>
+        <div class="border border-amber-900/60 bg-amber-950/10 p-4"><b class="text-amber-300">脱獄失敗</b><p class="mt-2 text-sm">計画者以外から最終評価上位2人を釈放。</p></div>
+      </div>
+      <p class="mt-5 text-xs leading-6 text-stone-500">
+        脱獄力が阻止力を上回れば成功。同点は失敗です。監獄秩序60以上・80以上では看守側へ阻止ボーナスが加わります。
+      </p>
+    </section>
+
+    <section class="private-box mt-4 p-5 text-sm leading-6">
+      <p class="lab-label text-amber-400">Information policy</p>
+      <p class="mt-2">スマホに表示される正確な評価、ストレス、疑惑度、手札、観察結果、脱獄情報は本人だけの秘密です。中央画面に見せたり、端末を他人へ渡したりしないでください。会話と交渉は口頭で自由に行えます。</p>
+    </section>
+
+    <div class="mt-6 grid gap-3 sm:grid-cols-2">
+      <a href="/" class="btn btn-green flex items-center justify-center">参加画面へ</a>
+      <a href="/host" class="btn flex items-center justify-center">ホスト画面へ</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,2 @@
+PRISON LABの静的アセット用ディレクトリです。
+現行MVPの視覚効果と警報音はCSSおよびWeb Audio APIで生成しています。

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>PRISON LAB — 入室手続</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body class="scanlines flex min-h-screen items-center justify-center p-5">
+  <main class="w-full max-w-md">
+    <div class="hazard-line"></div>
+    <section class="lab-panel p-6 sm:p-8">
+      <div class="mb-7 flex items-start justify-between gap-4">
+        <div>
+          <p class="lab-label">Correctional Experiment / 017</p>
+          <h1 class="mt-2 text-3xl font-black tracking-tight text-stone-100">PRISON <span class="text-amber-500">LAB</span></h1>
+          <p class="mt-1 text-sm text-stone-500">第17号更生実験・被験者受付</p>
+        </div>
+        <div class="border border-amber-500/30 px-2 py-1 text-xs font-bold text-amber-400">ENTRY</div>
+      </div>
+
+      <form id="join-form" class="space-y-5">
+        <label class="block">
+          <span class="lab-label">Laboratory code / ルームコード</span>
+          <input id="room-code" class="input mt-2 text-center font-mono text-2xl uppercase tracking-[.3em]" maxlength="4"
+                 autocomplete="off" placeholder="A7K2" required>
+        </label>
+        <label class="block">
+          <span class="lab-label">Subject name / プレイヤー名</span>
+          <input id="player-name" class="input mt-2 text-lg" maxlength="20" autocomplete="nickname"
+                 placeholder="名前を入力" required>
+        </label>
+        <button id="join-button" class="btn btn-green w-full text-base" type="submit">収容手続きを開始</button>
+      </form>
+
+      <a href="/rules" class="btn btn-ghost mt-3 flex w-full items-center justify-center text-sm">ゲームルールを確認</a>
+
+      <p class="mt-6 border-t border-stone-800 pt-5 text-xs leading-6 text-stone-500">
+        ホストPCと同じWi-Fiに接続してください。参加後、この端末には本人だけが閲覧できる機密情報が表示されます。
+      </p>
+    </section>
+  </main>
+  <div id="toasts" class="fixed right-4 top-4 z-[100] grid w-[min(360px,calc(100%-2rem))] gap-2"></div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/js/join.js"></script>
+</body>
+</html>
