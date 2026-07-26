@@ -34,7 +34,7 @@ body{font-family:'Segoe UI','Noto Sans JP',sans-serif;background:var(--bg);color
 .modal-bg.open{opacity:1;pointer-events:auto;}
 .modal-box{background:#fff;border-radius:20px;padding:28px;width:92%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.15);}
 .task-list-modal{max-height:82dvh;display:flex;flex-direction:column;overflow:hidden;}
-.task-list-modal #task-list{flex:1;min-height:0;overflow-y:auto;}
+.task-list-modal #task-list,.task-list-modal #template-list{flex:1;min-height:0;overflow-y:auto;}
 /* 公開版を更新するボタン */
 .refresh-app-btn{width:52px;height:52px;border:1px solid rgba(209,213,219,.8);border-radius:50%;background:rgba(255,255,255,.68);color:#2563eb;font-size:24px;line-height:1;box-shadow:0 4px 16px rgba(0,0,0,.12);backdrop-filter:blur(8px);cursor:pointer;transition:transform .2s,background .2s;}
 .refresh-app-btn:hover{background:rgba(255,255,255,.95);transform:scale(1.06);}
@@ -59,6 +59,7 @@ body{font-family:'Segoe UI','Noto Sans JP',sans-serif;background:var(--bg);color
   </div>
   <div class="flex items-center gap-1">
     <button id="btn-open-task-list" class="p-2 text-xl leading-none text-blue-600 hover:bg-blue-50 rounded-xl transition" type="button" aria-label="タスク一覧を開く" title="タスク一覧">📋</button>
+    <button id="btn-open-templates" class="p-2 text-xl leading-none text-blue-600 hover:bg-blue-50 rounded-xl transition" type="button" aria-label="テンプレートを開く" title="テンプレート">🗂️</button>
     <div class="relative">
       <button id="btn-calendar" class="p-2 text-xl leading-none text-blue-600 hover:bg-blue-50 rounded-xl transition" type="button" aria-label="日付を選択" title="日付を選択">🗓️</button>
       <input id="inp-calendar" class="calendar-picker" type="date" aria-label="表示する日付を選択"/>
@@ -98,6 +99,20 @@ body{font-family:'Segoe UI','Noto Sans JP',sans-serif;background:var(--bg);color
 
 <div class="max-w-5xl mx-auto flex justify-end mt-6">
   <button id="btn-refresh-app" class="refresh-app-btn" type="button" aria-label="公開済みの最新バージョンへ更新" title="最新バージョンへ更新">↻</button>
+</div>
+
+<!-- ===== テンプレートメニュー ===== -->
+<div id="modal-template" class="modal-bg">
+  <div class="modal-box task-list-modal">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-base font-bold">🗂️ テンプレート</h2>
+      <button id="btn-close-templates" class="w-8 h-8 rounded-full text-gray-400 hover:bg-gray-100 text-lg" type="button" aria-label="テンプレートを閉じる">×</button>
+    </div>
+    <button id="btn-save-template" class="w-full mb-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm transition">現在の予定をテンプレート登録</button>
+    <p class="text-xs text-gray-400 mb-3">テンプレートを選ぶと、表示中の日の予定が置き換わります。</p>
+    <div id="template-list" class="flex flex-col gap-2"></div>
+    <div id="template-empty" class="text-xs text-gray-400 text-center py-4">登録済みのテンプレートはありません</div>
+  </div>
 </div>
 
 <!-- ===== タスク一覧メニュー ===== -->
@@ -198,7 +213,7 @@ const DEFAULT_CATEGORIES = [
 let state = loadState();
 
 function defaultState() {
-  return { tasks: [], categories: [...DEFAULT_CATEGORIES] };
+  return { tasks: [], categories: [...DEFAULT_CATEGORIES], templates: [] };
 }
 function loadState() {
   try {
@@ -208,6 +223,7 @@ function loadState() {
       if (s.categories && s.tasks) {
         // 旧データには日付がないため、初回移行時は当日の予定として扱う
         s.tasks.forEach(task => { if (!task.date) task.date = localDateKey(); });
+        if (!Array.isArray(s.templates)) s.templates = [];
         return s;
       }
     }
@@ -382,6 +398,50 @@ function renderCategories() {
   });
 }
 
+// ========== テンプレート表示 ==========
+function renderTemplates() {
+  const list = document.getElementById('template-list');
+  const empty = document.getElementById('template-empty');
+  list.innerHTML = '';
+  if (state.templates.length === 0) { empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+
+  state.templates.forEach(template => {
+    const row = document.createElement('div');
+    row.className = 'flex items-center gap-2 p-3 rounded-lg border border-gray-100 hover:bg-blue-50 cursor-pointer transition';
+    row.innerHTML = `
+      <div class="flex-1 min-w-0">
+        <div class="text-sm font-semibold text-gray-800 truncate">${template.name}</div>
+        <div class="text-xs text-gray-400">${template.tasks.length}件の予定</div>
+      </div>
+      <button class="text-gray-300 hover:text-red-400 text-sm px-1" data-delete-template="${template.id}" aria-label="テンプレートを削除">✕</button>
+    `;
+    row.addEventListener('click', () => applyTemplate(template.id));
+    row.querySelector('[data-delete-template]').addEventListener('click', e => {
+      e.stopPropagation();
+      if (!window.confirm(`テンプレート「${template.name}」を削除しますか？`)) return;
+      state.templates = state.templates.filter(t => t.id !== template.id);
+      saveState(); renderTemplates();
+    });
+    list.appendChild(row);
+  });
+}
+
+function applyTemplate(templateId) {
+  const template = state.templates.find(t => t.id === templateId);
+  if (!template) return;
+  if (!window.confirm(`「${template.name}」を${selectedDate}の予定として適用しますか？\n現在の予定は置き換えられます。`)) return;
+
+  state.tasks = state.tasks.filter(task => task.date !== selectedDate);
+  template.tasks.forEach(task => {
+    state.tasks.push({ ...task, id: genId(), date: selectedDate });
+  });
+  saveState();
+  closeModal('modal-template');
+  renderAll();
+  scheduleNotifications();
+}
+
 // ========== 通知機能 ==========
 let notificationTimers = [];
 
@@ -512,6 +572,21 @@ document.querySelectorAll('.modal-bg').forEach(el => {
 document.getElementById('btn-open-task-list').addEventListener('click', () => openModal('modal-task-list'));
 document.getElementById('btn-close-task-list').addEventListener('click', () => closeModal('modal-task-list'));
 
+// テンプレートメニュー
+document.getElementById('btn-open-templates').addEventListener('click', () => {
+  renderTemplates();
+  openModal('modal-template');
+});
+document.getElementById('btn-close-templates').addEventListener('click', () => closeModal('modal-template'));
+document.getElementById('btn-save-template').addEventListener('click', () => {
+  const name = window.prompt('テンプレート名を入力してください');
+  if (!name || !name.trim()) return;
+  const tasks = selectedTasks().map(({ name, startMin, endMin, categoryId }) => ({ name, startMin, endMin, categoryId }));
+  state.templates.push({ id: genId(), name: name.trim(), tasks });
+  saveState();
+  renderTemplates();
+});
+
 // ========== 公開済みアプリの更新 ==========
 document.getElementById('btn-refresh-app').addEventListener('click', async () => {
   const button = document.getElementById('btn-refresh-app');
@@ -535,6 +610,7 @@ function renderAll() {
   renderChart();
   renderTaskList();
   renderCategories();
+  renderTemplates();
 }
 
 // ========== 画面再表示時に最新状態へ更新 ==========
