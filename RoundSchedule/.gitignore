@@ -3,3 +3,10 @@ node_modules/
 test-results/
 dist/
 .DS_Store
+.schedule-data/
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm

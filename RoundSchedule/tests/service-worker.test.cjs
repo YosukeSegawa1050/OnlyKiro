@@ -40,7 +40,7 @@ function worker({ cached = true, fetchResult = new Response('network'), failPut 
     self,
     caches: {
       open: async () => cache,
-      keys: async () => ['daily-schedule-v4', 'daily-schedule-2.0.0', 'another-app'],
+      keys: async () => ['daily-schedule-v4', 'daily-schedule-2.2.0', 'another-app'],
       delete: async (key) => deleted.push(key),
     },
     URL,

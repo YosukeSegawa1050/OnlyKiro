@@ -33,12 +33,16 @@
     toastTimer,
     installPrompt = null;
   let templateSourceDate = selectedDate;
-  const repo = new ScheduleStorage.Repository({
+  const repo = new (globalThis.ScheduleShared?.Repository || ScheduleStorage.Repository)({
     legacyStorage: { getItem: (key) => localStorage.getItem(key) },
   });
   const notifier = new ScheduleNotifications.NotificationManager(repo, {
     onError: (e) => toast(e.message),
   });
+  function refreshNotifications() {
+    if (repo.notificationsAllowed === false) notifier.stop();
+    else notifier.refresh(state);
+  }
   let channel;
   try {
     channel = new BroadcastChannel('daily-schedule-v2');
@@ -82,6 +86,7 @@
   }
   function closeDialog(id) {
     if (id === 'task-dialog') saveDraft();
+    if (id === 'categories-dialog') categoryInteractions.exit();
     $(id).close();
   }
   document
@@ -94,7 +99,7 @@
     if (next.revision < state.revision) return;
     state = next;
     render();
-    notifier.refresh(state);
+    refreshNotifications();
   }
   async function commit(label, mutator, options = {}) {
     requireReady();
@@ -122,6 +127,7 @@
       applyState(await repo.read());
     } catch (e) {
       $('save-status').textContent = '保存状態を再確認できませんでした';
+      if (repo.notificationsAllowed === false) notifier.stop();
       if (e instanceof ScheduleStorage.RecoveryError) {
         ready = false;
         recovery = e;
@@ -184,9 +190,11 @@
       $('category-summary').append(chip);
     }
     if (ready)
-      $('save-status').textContent = state.updatedAt
-        ? `この端末に保存済み · ${new Date(state.updatedAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`
-        : 'この端末に保存';
+      $('save-status').textContent =
+        repo.saveStatus?.() ||
+        (state.updatedAt
+          ? `保存済み · ${new Date(state.updatedAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`
+          : '保存済み');
     $('network-status').textContent = navigator.onLine === false ? 'オフライン' : 'オンライン';
     // Never rebuild an open editor during focus/storage/clock refresh.
   }
@@ -321,7 +329,8 @@
       : null;
     $('center-kicker').textContent = isToday ? (current ? 'NOW' : 'TODAY') : '24 HOURS';
     $('center-time').textContent = isToday ? clockText(Math.floor(nowMin)) : '24H';
-    $('center-task').textContent = current?.name || (next ? `次：${next.name}` : '自分のペースで');
+    $('center-task').textContent = current?.name || (next ? `次：${next.name}` : '');
+    $('center-task').hidden = !current && !next;
     $('center-detail').textContent = current
       ? `あと${C.durationText(Math.ceil(tillEnd(current) - Date.now() / 60000))}`
       : next
@@ -366,10 +375,11 @@
       $('search').value.trim() || $('filter-category').value || $('search-all').checked;
     $('task-empty').querySelector('h3').textContent = filtering
       ? '一致する予定がありません'
-      : '余白のある一日';
+      : '予定なし';
     $('task-empty').querySelector('p').textContent = filtering
       ? '検索語やカテゴリーを変更してください。'
-      : '最初の予定を追加して、一日の流れをつくりましょう。';
+      : '';
+    $('task-empty').querySelector('p').hidden = !filtering;
     $('empty-add').hidden = !!filtering;
     for (const t of tasks.slice(0, 500)) {
       const cat = state.categories.find((c) => c.id === t.categoryId),
@@ -707,6 +717,8 @@
     saveDraft();
   });
   function readTask() {
+    // Keep IDs stable across retry and across drafts created by earlier versions.
+    if (!edit.id && !edit.newId) edit.newId = C.uid();
     const kind = $('task-kind').value,
       date = $('task-date').value,
       isOne = edit.base?.repeat && $('repeat-scope').value === 'one';
@@ -761,6 +773,10 @@
         context = C.copy(edit),
         one = context.base?.repeat && $('repeat-scope').value === 'one';
       await commit('予定を保存', (s) => {
+        if (!context.id && s.tasks.some((task) => task.id === value.id))
+          throw new Error(
+            'この予定はすでに保存されています。入力を閉じて予定一覧を確認してください。'
+          );
         const original = checkedOriginal(s, context);
         if (original && one) {
           original.repeat.exceptions = [
@@ -870,6 +886,7 @@
 
   function resetCategory() {
     categoryEdit = null;
+    $('category-form').hidden = true;
     $('category-form-title').textContent = 'カテゴリーを追加';
     $('category-name').value = '';
     $('category-color').value = '#2563eb';
@@ -877,60 +894,80 @@
     $('category-reassign-field').hidden = true;
     clearError('category-error');
   }
+  function editCategory(id) {
+    const cat = state.categories.find((item) => item.id === id);
+    if (!cat) return;
+    categoryInteractions.exit();
+    categoryEdit = C.copy(cat);
+    $('category-name').value = cat.name;
+    $('category-color').value = cat.color;
+    $('category-form-title').textContent = 'カテゴリーを編集';
+    $('category-form').hidden = false;
+    $('delete-category').hidden = false;
+    $('category-reassign-field').hidden = false;
+    setOptions(
+      $('category-reassign'),
+      state.categories.filter((item) => item.id !== id),
+      ''
+    );
+    clearError('category-error');
+    $('category-name').focus();
+  }
   function renderCategories() {
     const list = $('category-list');
     list.replaceChildren();
-    state.categories.forEach((cat, index) => {
-      const row = el('div', undefined, 'manager-row'),
-        dot = el('span', undefined, 'dot');
+    for (const cat of state.categories) {
+      const row = el('button', undefined, 'category-item');
+      row.type = 'button';
+      row.dataset.categoryId = cat.id;
+      row.setAttribute('aria-describedby', 'category-gesture-help');
+      const dot = el('span', undefined, 'dot');
       dot.style.background = cat.color;
-      row.append(dot, el('strong', cat.name, 'manager-name'));
-      for (const [text, delta] of [
-        ['↑', -1],
-        ['↓', 1],
-      ]) {
-        const b = button(
-          text,
-          async () => {
-            try {
-              await commit('カテゴリーの順序を変更', (s) => {
-                const i = s.categories.findIndex((c) => c.id === cat.id),
-                  j = i + delta;
-                if (i >= 0 && j >= 0 && j < s.categories.length)
-                  [s.categories[i], s.categories[j]] = [s.categories[j], s.categories[i]];
-                return s;
-              });
-              renderCategories();
-            } catch (e) {
-              errorAt('category-error', e);
-            }
-          },
-          'reorder'
-        );
-        b.setAttribute('aria-label', `${cat.name}を${delta < 0 ? '上' : '下'}へ`);
-        b.disabled = index + delta < 0 || index + delta >= state.categories.length;
-        row.append(b);
-      }
-      row.append(
-        button('編集', () => {
-          categoryEdit = C.copy(cat);
-          $('category-name').value = cat.name;
-          $('category-color').value = cat.color;
-          $('category-form-title').textContent = 'カテゴリーを編集';
-          $('delete-category').hidden = false;
-          $('category-reassign-field').hidden = false;
-          setOptions(
-            $('category-reassign'),
-            state.categories.filter((c) => c.id !== cat.id),
-            ''
-          );
-          clearError('category-error');
-          $('category-name').focus();
-        })
-      );
+      dot.setAttribute('aria-hidden', 'true');
+      const grip = el('span', '⠿', 'category-grip');
+      grip.setAttribute('aria-hidden', 'true');
+      row.append(dot, el('strong', cat.name, 'category-name'), grip);
       list.append(row);
-    });
+    }
+    categoryInteractions.refresh();
   }
+  const categoryInteractions = ScheduleCategoryInteractions.create({
+    list: $('category-list'),
+    async onReorder(ids, originalIds) {
+      clearError('category-error');
+      await commit('カテゴリーの順序を変更', (s) => {
+        const currentIds = s.categories.map((cat) => cat.id);
+        if (fingerprint(currentIds) !== fingerprint(originalIds))
+          throw new Error('カテゴリーが別の場所で変更されました。開き直してください');
+        const lookup = new Map(s.categories.map((cat) => [cat.id, cat]));
+        s.categories = ids.map((id) => lookup.get(id));
+        return s;
+      });
+    },
+    onEdit: editCategory,
+    onModeChange(enabled) {
+      $('category-done').hidden = !enabled;
+      $('add-category').hidden = enabled;
+      $('close-categories').hidden = enabled;
+      if (enabled) $('category-form').hidden = true;
+      $('category-mode-status').textContent = enabled ? '並べ替え中' : '';
+    },
+    onError: (error) => errorAt('category-error', error),
+  });
+  $('category-done').addEventListener('click', () => categoryInteractions.exit());
+  $('categories-dialog').addEventListener('close', () => categoryInteractions.exit());
+  $('categories-dialog').addEventListener('cancel', (event) => {
+    if (categoryInteractions.active) {
+      event.preventDefault();
+      categoryInteractions.exit();
+    }
+  });
+  $('add-category').addEventListener('click', () => {
+    categoryInteractions.exit();
+    resetCategory();
+    $('category-form').hidden = false;
+    $('category-name').focus();
+  });
   $('category-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     clearError('category-error');
@@ -1008,14 +1045,13 @@
     $('template-context').textContent = `対象日：${dayLabel(templateSourceDate)}`;
     const list = $('template-list');
     list.replaceChildren();
-    if (!state.templates.length)
-      list.append(el('p', 'まだテンプレートがありません。よく使う一日を登録しましょう。', 'hint'));
+    if (!state.templates.length) list.append(el('p', 'テンプレートなし', 'hint'));
     state.templates.forEach((t, index) => {
       const row = el('div', undefined, 'manager-row');
       row.append(
         el('strong', t.name, 'manager-name'),
         el('span', `${t.tasks.length}件`, 'count'),
-        button('内容を見る・編集', () => editTemplate(t)),
+        button('編集', () => editTemplate(t)),
         button('複製', () =>
           editTemplate(
             {
@@ -1300,8 +1336,7 @@
     $('setting-lead').value = String(state.settings.lead);
     $('export-from').value = selectedDate;
     $('export-to').value = C.addDays(selectedDate, 30);
-    $('data-count').textContent =
-      `予定 ${state.tasks.length}件（繰り返しは1件として集計）・カテゴリー ${state.categories.length}件・テンプレート ${state.templates.length}件`;
+    $('data-count').textContent = `予定 ${state.tasks.length}件`;
     notificationStatus();
     clearError('settings-error');
     openDialog('settings-dialog');
@@ -1338,7 +1373,7 @@
       notificationStatus();
       if (permission === 'granted') {
         $('setting-notifications').checked = true;
-        notifier.refresh(state);
+        refreshNotifications();
         $('notification-status').textContent =
           '通知を許可しました。「設定を保存」で有効になります。';
       } else
@@ -1351,7 +1386,7 @@
   $('test-notification').addEventListener('click', async () => {
     try {
       await notifier.test();
-      $('notification-status').textContent = 'テスト通知を送信しました。表示を確認してください。';
+      $('notification-status').textContent = 'テスト通知を送信しました';
     } catch (e) {
       errorAt('settings-error', e);
     }
@@ -1367,7 +1402,7 @@
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  $('export-json').addEventListener('click', async () => {
+  async function exportJSON() {
     try {
       requireReady();
       const current = await repo.read();
@@ -1379,7 +1414,7 @@
     } catch (e) {
       errorAt('settings-error', e);
     }
-  });
+  }
   $('export-archive').addEventListener('click', async () => {
     try {
       const archive = await repo.archive();
@@ -1395,8 +1430,32 @@
     $('file-input').accept = mode === 'ics' ? '.ics,text/calendar' : '.json,application/json';
     $('file-input').click();
   }
-  $('import-json').addEventListener('click', () => pickFile('json'));
-  $('import-ics').addEventListener('click', () => pickFile('ics'));
+  function updateDataFormat() {
+    const format = $('data-format').value;
+    $('calendar-export-range').hidden = format !== 'ics';
+    $('import-data').hidden = format === 'svg';
+    $('export-data').setAttribute('aria-label', format.toUpperCase() + 'を保存');
+    $('import-data').setAttribute('aria-label', format.toUpperCase() + 'を読み込む');
+    clearError('settings-error');
+  }
+  $('data-format').addEventListener('change', updateDataFormat);
+  $('export-data').addEventListener('click', async () => {
+    clearError('settings-error');
+    try {
+      requireReady();
+      const format = $('data-format').value;
+      if (format === 'json') await exportJSON();
+      else if (format === 'ics') exportICS();
+      else if (format === 'svg') exportSVG();
+    } catch (error) {
+      errorAt('settings-error', error);
+    }
+  });
+  $('import-data').addEventListener('click', () => {
+    const format = $('data-format').value;
+    if (format === 'json' || format === 'ics') pickFile(format);
+  });
+  updateDataFormat();
   $('recovery-import').addEventListener('click', () => pickFile('json'));
   function previewImport(data) {
     importData = data;
@@ -1508,7 +1567,7 @@
       toast(e.message);
     }
   });
-  $('export-ics').addEventListener('click', () => {
+  function exportICS() {
     try {
       const from = $('export-from').value,
         to = $('export-to').value;
@@ -1527,8 +1586,8 @@
     } catch (e) {
       errorAt('settings-error', e);
     }
-  });
-  $('export-svg').addEventListener('click', () => {
+  }
+  function exportSVG() {
     const svg = $('chart').cloneNode(true);
     svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
     svg.setAttribute('width', '880');
@@ -1577,7 +1636,7 @@
       new XMLSerializer().serializeToString(svg),
       'image/svg+xml'
     );
-  });
+  }
 
   let registration = null;
   async function checkOffline() {
@@ -1589,13 +1648,20 @@
         './ds-manifest.json',
         './icon-192.png',
         './icon-512.png',
-        ...['core.js', 'storage.js', 'notifications.js', 'app.js', 'styles.css'].map(
-          (f) => `./${f}?v=${C.VERSION}`
-        ),
+        ...[
+          'core.js',
+          'storage.js',
+          'shared-storage.js',
+          'notifications.js',
+          'shared-ui.js',
+          'category-interactions.js',
+          'app.js',
+          'styles.css',
+        ].map((f) => `./${f}?v=${C.VERSION}`),
       ];
       const complete = (await Promise.all(assets.map((url) => cache.match(url)))).every(Boolean);
       $('offline-status').textContent = complete
-        ? 'オフライン用の画面と必要なファイルを保存済みです。'
+        ? 'オフライン利用可'
         : 'オフラインの準備中です。オンラインで再読み込みしてください。';
     } catch (e) {
       $('offline-status').textContent = e.message;
@@ -1754,6 +1820,9 @@
   setInterval(() => {
     refresh();
   }, 30000);
+  setInterval(() => {
+    if (repo.sharedEnabled && document.visibilityState !== 'hidden') refresh();
+  }, 5000);
   async function start() {
     const params = new URLSearchParams(location.search);
     if (C.validDate(params.get('date'))) selectedDate = params.get('date');
@@ -1766,7 +1835,23 @@
       $('workspace').inert = false;
       $('workspace').setAttribute('aria-busy', 'false');
       render();
-      notifier.refresh(state);
+      refreshNotifications();
+      globalThis.ScheduleSharedUI?.mount({
+        repo,
+        onChange(data) {
+          state = data;
+          render();
+          refreshNotifications();
+        },
+        onError: toast,
+        beforeSwitch() {
+          if (document.querySelector('dialog[open]')) {
+            toast('編集中の画面を閉じてから接続してください');
+            return false;
+          }
+          return true;
+        },
+      });
       const taskId = params.get('task');
       if (taskId) {
         const occ = C.occurrences(state.tasks, selectedDate).find((o) => o.taskId === taskId);

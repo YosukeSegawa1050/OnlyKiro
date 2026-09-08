@@ -12,20 +12,21 @@
     <link rel="icon" href="./icon-192.png" sizes="192x192" />
     <link rel="apple-touch-icon" href="./icon-512.png" />
     <link rel="manifest" href="./ds-manifest.json" />
-    <link rel="stylesheet" href="./styles.css?v=2.0.0" />
-    <script defer src="./core.js?v=2.0.0"></script>
-    <script defer src="./storage.js?v=2.0.0"></script>
-    <script defer src="./notifications.js?v=2.0.0"></script>
-    <script defer src="./app.js?v=2.0.0"></script>
+    <link rel="stylesheet" href="./styles.css?v=2.2.0" />
+    <script defer src="./core.js?v=2.2.0"></script>
+    <script defer src="./storage.js?v=2.2.0"></script>
+    <script defer src="./shared-storage.js?v=2.2.0"></script>
+    <script defer src="./notifications.js?v=2.2.0"></script>
+    <script defer src="./shared-ui.js?v=2.2.0"></script>
+    <script defer src="./category-interactions.js?v=2.2.0"></script>
+    <script defer src="./app.js?v=2.2.0"></script>
   </head>
   <body>
     <a class="skip-link" href="#agenda">予定一覧へ移動</a>
     <div class="shell">
       <header class="app-header">
         <a class="brand" href="./RoundSchedule.html"
-          ><img src="./icon-192.png" width="42" height="42" alt="" /><span
-            >Daily Schedule<small>一日を、見渡す。</small></span
-          ></a
+          ><img src="./icon-192.png" width="42" height="42" alt="" /><span>Daily Schedule</span></a
         >
         <nav aria-label="アプリの操作" class="header-actions">
           <button id="open-templates" type="button">テンプレート</button>
@@ -58,11 +59,11 @@
       <main id="workspace" aria-busy="true">
         <section class="date-toolbar" aria-label="表示日の選択">
           <div class="date-navigation">
-            <button id="prev-day" type="button" aria-label="前の日へ">‹</button
+            <button id="prev-day" class="date-step" type="button" aria-label="前の日へ">‹</button
             ><label class="date-label" for="selected-date"
               ><span id="date-caption">表示日</span
               ><input id="selected-date" type="date" min="1900-01-01" max="9999-12-24" /></label
-            ><button id="next-day" type="button" aria-label="次の日へ">›</button
+            ><button id="next-day" class="date-step" type="button" aria-label="次の日へ">›</button
             ><button id="go-today" type="button">今日へ</button>
           </div>
           <div class="view-switch" role="group" aria-label="表示範囲">
@@ -74,7 +75,6 @@
         <section id="overview" class="panel overview" hidden aria-label="週と月の予定">
           <div class="section-heading">
             <h2 id="overview-title"></h2>
-            <p>日付を選ぶと、その日の予定を表示します</p>
           </div>
           <div id="calendar-grid" class="calendar-grid"></div>
         </section>
@@ -82,7 +82,6 @@
           <section class="panel day-panel" aria-labelledby="day-title">
             <div class="section-heading">
               <div>
-                <p class="eyebrow">YOUR DAY, AT A GLANCE</p>
                 <h1 id="day-title">今日のスケジュール</h1>
               </div>
               <span id="day-count" class="badge"></span>
@@ -104,9 +103,6 @@
               <div><span>完了</span><strong id="stat-done">—</strong></div>
             </div>
             <button id="add-task" class="primary wide" type="button">＋ 予定を追加</button>
-            <p class="hint chart-hint">
-              円の予定を選んで編集。空いている場所を選ぶと予定を追加できます。
-            </p>
           </section>
           <section
             id="agenda"
@@ -116,7 +112,6 @@
           >
             <div class="section-heading">
               <div>
-                <p class="eyebrow">AGENDA</p>
                 <h2 id="agenda-title">予定一覧</h2>
               </div>
               <button id="undo" type="button" title="最後の保存操作を取り消す">元に戻す</button>
@@ -139,31 +134,20 @@
             <div id="task-list" class="task-list"></div>
             <div id="task-empty" class="empty" hidden>
               <span class="empty-symbol" aria-hidden="true">◷</span>
-              <h3>余白のある一日</h3>
-              <p>最初の予定を追加して、一日の流れをつくりましょう。</p>
+              <h3>予定なし</h3>
+              <p hidden></p>
               <button id="empty-add" type="button">＋ 予定を追加</button>
             </div>
             <div id="category-summary" class="category-summary"></div>
           </section>
         </div>
-        <details class="guide">
-          <summary>はじめての使い方</summary>
-          <ol>
-            <li>日付を選び、「予定を追加」から時間とカテゴリーを入力します。</li>
-            <li>円や一覧の予定を選ぶと編集できます。翌日へ続く予定は終了日も指定します。</li>
-            <li>よく使う一日はテンプレートへ。誤った変更は「元に戻す」で取り消せます。</li>
-            <li>
-              データはこの端末のブラウザーに保存されます。「設定・データ」で定期的にバックアップしてください。
-            </li>
-          </ol>
-        </details>
       </main>
       <footer>
         <div>
           <span id="save-status" role="status">読み込み中…</span><span id="network-status"></span>
         </div>
         <div class="actions">
-          <span id="version">v2.0.0</span><button id="update-app" type="button">更新を確認</button
+          <span id="version">v2.2.0</span><button id="update-app" type="button">更新を確認</button
           ><button id="print-day" type="button">印刷・PDF</button>
         </div>
       </footer>
@@ -192,7 +176,6 @@
             <option value="one">この回のみ</option>
             <option value="series">繰り返し全体</option>
           </select>
-          <p class="hint">全体の編集では最初の開始日からの予定を変更します。</p>
         </div>
         <label for="task-name">予定名 <span class="required">必須</span></label
         ><input
@@ -255,7 +238,6 @@
             <div id="repeat-days" class="weekday-checks"></div>
             <label for="repeat-until">繰り返しの終了日（1年以内）</label
             ><input id="repeat-until" type="date" />
-            <p class="hint">特定日の変更・削除は「この回のみ」で行えます。</p>
           </div>
         </details>
         <details>
@@ -296,7 +278,7 @@
           ><button id="delete-task" class="danger" type="button">削除</button>
         </div>
         <div class="dialog-footer">
-          <button type="button" data-close="task-dialog">閉じる・下書き保存</button
+          <button type="button" data-close="task-dialog">閉じる</button
           ><button id="save-task" type="submit" class="primary">保存</button>
         </div>
       </form>
@@ -305,29 +287,47 @@
     <dialog id="categories-dialog" aria-labelledby="categories-title">
       <div class="dialog-heading">
         <h2 id="categories-title">カテゴリー</h2>
-        <button
-          type="button"
-          data-close="categories-dialog"
-          class="icon-button"
-          aria-label="閉じる"
-        >
-          ×
-        </button>
+        <div class="category-controls">
+          <button id="add-category" type="button" class="icon-button" aria-label="カテゴリーを追加">
+            ＋
+          </button>
+          <button id="category-done" type="button" class="primary" hidden>完了</button>
+          <button
+            id="close-categories"
+            type="button"
+            data-close="categories-dialog"
+            class="icon-button"
+            aria-label="閉じる"
+          >
+            ×
+          </button>
+        </div>
       </div>
+      <p id="category-gesture-help" class="sr-only">
+        長押しで並べ替え、ダブルタップで編集。キーボードはスペースで並べ替え、上下キーで移動、Enterで編集、Escapeで終了。
+      </p>
       <div id="category-list" class="manager-list"></div>
-      <form id="category-form">
+      <p id="category-mode-status" class="sr-only" role="status"></p>
+      <p id="category-error" class="form-error" role="alert" hidden></p>
+      <form id="category-form" hidden>
         <h3 id="category-form-title">カテゴリーを追加</h3>
-        <label for="category-name">名前</label
-        ><input id="category-name" required maxlength="40" /><label for="category-color">色</label
-        ><input id="category-color" type="color" value="#2563eb" />
+        <div class="category-fields">
+          <div>
+            <label for="category-name">名前</label
+            ><input id="category-name" required maxlength="40" />
+          </div>
+          <div>
+            <label for="category-color">色</label
+            ><input id="category-color" type="color" value="#2563eb" />
+          </div>
+        </div>
         <div id="category-reassign-field" hidden>
-          <label for="category-reassign">削除時の予定・テンプレートの移し先</label
+          <label for="category-reassign">削除時の移し先</label
           ><select id="category-reassign"></select>
         </div>
-        <p id="category-error" class="form-error" role="alert" hidden></p>
         <div class="dialog-footer">
-          <button type="button" id="reset-category">新規追加へ</button
-          ><button type="button" id="delete-category" class="danger" hidden>削除して付け替え</button
+          <button type="button" id="reset-category">キャンセル</button
+          ><button type="button" id="delete-category" class="danger" hidden>削除</button
           ><button type="submit" class="primary">保存</button>
         </div>
       </form>
@@ -346,7 +346,6 @@
       <button id="snapshot-template" class="primary" type="button">
         表示日の予定をテンプレート登録
       </button>
-      <p class="hint">表示日に開始する予定を登録します。前日から続く予定は含みません。</p>
       <div id="template-list" class="manager-list"></div>
       <section id="template-editor" hidden>
         <form id="template-form">
@@ -367,9 +366,8 @@
             <option value="append">既存の予定に追加</option>
             <option value="replace">この日に開始する予定を置き換え</option>
           </select>
-          <p class="hint">前日から続く予定は残します。重なる予定がある場合は適用しません。</p>
           <p id="template-diff" class="notice"></p>
-          <button id="apply-template" class="primary" type="button">内容を確認して適用</button>
+          <button id="apply-template" class="primary" type="button">適用</button>
         </div>
       </section>
     </dialog>
@@ -381,17 +379,25 @@
           ×
         </button>
       </div>
-      <section>
-        <h3>この端末に保存</h3>
-        <p>
-          予定はこの端末・このブラウザーに保存されます。別の端末には自動同期されません。ブラウザーのデータを削除する前にバックアップしてください。
-        </p>
-        <div class="actions">
-          <button id="export-json" class="primary" type="button">バックアップを書き出す</button
-          ><button id="import-json" type="button">バックアップを復元</button
-          ><button id="export-archive" type="button">移行前データを保存</button>
+      <section class="data-section">
+        <div class="section-heading">
+          <h3>データ</h3>
+          <span id="data-count" class="hint"></span>
         </div>
-        <p id="data-count" class="hint"></p>
+        <div class="data-toolbar">
+          <label for="data-format" class="sr-only">ファイル形式</label>
+          <select id="data-format">
+            <option value="json">JSON バックアップ</option>
+            <option value="ics">ICS カレンダー</option>
+            <option value="svg">SVG 画像</option>
+          </select>
+          <button id="export-data" class="primary" type="button">保存</button>
+          <button id="import-data" type="button">読込</button>
+        </div>
+        <div id="calendar-export-range" class="field-pair" hidden>
+          <div><label for="export-from">開始日</label><input id="export-from" type="date" /></div>
+          <div><label for="export-to">終了日</label><input id="export-to" type="date" /></div>
+        </div>
       </section>
       <form id="settings-form">
         <section>
@@ -421,9 +427,7 @@
         </section>
         <section>
           <h3>通知</h3>
-          <p class="notice">
-            通知はアプリを開いている間に利用できます。閉じた後や端末の休止中の定刻通知は保証されません。必要な予定はカレンダーへ書き出せます。
-          </p>
+          <p class="hint">アプリを開いている間のみ通知します。</p>
           <p id="notification-status" role="status"></p>
           <div class="actions">
             <button id="enable-notifications" type="button">通知を有効にする</button
@@ -445,29 +449,12 @@
         <p id="settings-error" class="form-error" role="alert" hidden></p>
         <button type="submit" class="primary">設定を保存</button>
       </form>
-      <section>
-        <h3>カレンダー・共有</h3>
-        <div class="field-pair">
-          <div><label for="export-from">開始日</label><input id="export-from" type="date" /></div>
-          <div><label for="export-to">終了日</label><input id="export-to" type="date" /></div>
-        </div>
-        <div class="actions">
-          <button id="export-ics" type="button">ICSを書き出す</button
-          ><button id="import-ics" type="button">ICSを取り込む</button
-          ><button id="export-svg" type="button">一日のグラフを画像で保存</button>
-        </div>
-        <p class="hint">
-          ICS書き出しは指定期間の繰り返しを個別予定に展開します。取り込みは開始・終了を持つ単発予定（現地時刻またはUTC）に対応します。画像はSVG形式です。
-        </p>
-      </section>
-      <section>
-        <h3>ホーム画面に追加</h3>
-        <p>
-          iPhone・iPadはSafariの共有メニューから「ホーム画面に追加」。Android・PCはブラウザーのインストールメニューを使います。
-        </p>
+      <details class="secondary-settings">
+        <summary>その他</summary>
+        <button id="export-archive" type="button">移行・復旧前のデータ</button>
         <button id="install-app" type="button" hidden>アプリをインストール</button>
         <p id="offline-status" role="status">オフラインの準備状態を確認中</p>
-      </section>
+      </details>
     </dialog>
 
     <dialog id="import-dialog" aria-labelledby="import-title">

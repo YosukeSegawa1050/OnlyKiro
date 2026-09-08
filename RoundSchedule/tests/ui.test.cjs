@@ -21,6 +21,21 @@ async function app({
 } = {}) {
   const { window } = parseHTML(fs.readFileSync(path.join(root, 'RoundSchedule.html'), 'utf8'));
   const { document } = window;
+  const downloads = [];
+  class DownloadURL extends URL {
+    static createObjectURL(blob) {
+      const url = `blob:test-${downloads.length}`;
+      downloads.push({ url, blob });
+      return url;
+    }
+    static revokeObjectURL() {}
+  }
+  document.addEventListener('click', (event) => {
+    if (event.target.tagName === 'A' && event.target.download) {
+      const item = downloads.find((download) => download.url === event.target.href);
+      if (item) item.name = event.target.download;
+    }
+  });
   Object.defineProperty(window.HTMLSelectElement.prototype, 'value', {
     configurable: true,
     get() {
@@ -83,7 +98,7 @@ async function app({
     navigator: { onLine: true },
     location: { search: '', href: 'http://localhost/RoundSchedule.html' },
     Date: Clock,
-    URL,
+    URL: DownloadURL,
     URLSearchParams,
     Blob,
     TextEncoder,
@@ -91,7 +106,11 @@ async function app({
     crypto: require('node:crypto').webcrypto,
     console,
     confirm: () => true,
-    XMLSerializer: window.XMLSerializer,
+    XMLSerializer: class {
+      serializeToString(node) {
+        return node.toString();
+      }
+    },
     setTimeout: () => 1,
     clearTimeout() {},
     setInterval() {},
@@ -102,7 +121,13 @@ async function app({
     getComputedStyle: () => ({ getPropertyValue: () => '' }),
   });
   ctx.window = ctx;
-  for (const file of ['core.js', 'storage.js', 'notifications.js', 'app.js'])
+  for (const file of [
+    'core.js',
+    'storage.js',
+    'notifications.js',
+    'category-interactions.js',
+    'app.js',
+  ])
     vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), ctx, { filename: file });
   await waitFor(() => document.getElementById('workspace').getAttribute('aria-busy') === 'false');
   const get = (id) => document.getElementById(id),
@@ -118,6 +143,7 @@ async function app({
     C,
     repo,
     document,
+    downloads,
     session,
     window,
     setNow: (v) => {
@@ -192,6 +218,77 @@ test('app boots, adds literal HTML-looking name, edits from list, and undo resto
   assert.equal((await a.repo.read()).tasks.length, 0);
   a.close();
 });
+
+test('date arrows continue in both directions across month boundaries and after today reset', async () => {
+  const a = await app();
+  a.get('selected-date').value = '2026-09-30';
+  a.dispatch('selected-date', 'change');
+  for (const [control, date] of [
+    ['next-day', '2026-10-01'],
+    ['next-day', '2026-10-02'],
+    ['prev-day', '2026-10-01'],
+    ['prev-day', '2026-09-30'],
+    ['go-today', '2026-09-08'],
+    ['prev-day', '2026-09-07'],
+    ['next-day', '2026-09-08'],
+  ]) {
+    a.dispatch(control, 'click');
+    assert.equal(a.get('selected-date').value, date);
+    assert.equal(a.get('prev-day').hasAttribute('disabled'), false);
+    assert.equal(a.get('next-day').hasAttribute('disabled'), false);
+  }
+  a.close();
+});
+
+test('manual retry after a saved all-day task loses its response never creates a second task', async () => {
+  const a = await app();
+  a.dispatch('add-task', 'click');
+  fill(a, { name: '一度だけ登録する終日予定' });
+  a.get('task-kind').value = 'allDay';
+  a.dispatch('task-form', 'change');
+  const prototype = a.ctx.ScheduleStorage.Repository.prototype;
+  const original = prototype.mutate;
+  let lost = false;
+  prototype.mutate = async function (...args) {
+    const state = await original.apply(this, args);
+    if (!lost) {
+      lost = true;
+      throw new Error('保存応答が失われました');
+    }
+    return state;
+  };
+  try {
+    await submit(a);
+    assert.equal(a.get('task-dialog').open, true);
+    assert.equal((await a.repo.read()).tasks.length, 1);
+    await submit(a);
+    assert.match(a.get('task-error').textContent, /すでに保存/);
+    assert.equal((await a.repo.read()).tasks.length, 1);
+    assert.equal(a.get('task-name').value, '一度だけ登録する終日予定');
+  } finally {
+    prototype.mutate = original;
+    a.close();
+  }
+});
+
+test('chart center shows current and next tasks, and leaves unused caption space empty', async () => {
+  const a = await app();
+  assert.equal(a.get('center-task').textContent, '');
+  assert.equal(a.get('center-task').hidden, true);
+  a.dispatch('add-task', 'click');
+  fill(a, { name: '昼の予定', start: '13:00', end: '14:00' });
+  await submit(a);
+  assert.equal(a.get('center-task').textContent, '次：昼の予定');
+  assert.equal(a.get('center-task').hidden, false);
+  a.setNow(new Date('2026-09-08T13:30:00').getTime());
+  a.focus();
+  await waitFor(() => a.get('center-task').textContent === '昼の予定');
+  a.dispatch('next-day', 'click');
+  assert.equal(a.get('center-task').textContent, '');
+  assert.equal(a.get('center-task').hidden, true);
+  assert.equal(a.get('center-detail').textContent, '');
+  a.close();
+});
 test('editing category and original date survive focus, cross-tab refresh and midnight', async () => {
   const a = await app({ now: new Date('2026-09-08T23:59:00').getTime() });
   a.dispatch('add-task', 'click');
@@ -250,19 +347,144 @@ test('category rename and deletion reassign existing tasks and templates safely'
   await submit(a);
   a.dispatch('open-categories', 'click');
   const study = [...a.get('category-list').children].find((r) => r.textContent.includes('学習'));
-  study.querySelectorAll('button')[2].click();
+  study.dispatchEvent(new a.window.Event('dblclick', { bubbles: true }));
   a.get('category-name').value = '読書';
   a.dispatch('category-form', 'submit');
   await waitFor(() => a.get('category-list').textContent.includes('読書'));
   assert.match(a.get('task-list').textContent, /読書/);
   const renamed = [...a.get('category-list').children].find((r) => r.textContent.includes('読書'));
-  renamed.querySelectorAll('button')[2].click();
+  a.setNow(new Date('2026-09-08T12:00:01').getTime());
+  renamed.dispatchEvent(new a.window.Event('dblclick', { bubbles: true }));
   a.get('category-reassign').value = 'free';
   a.dispatch('delete-category', 'click');
   await waitFor(() => !a.get('category-list').textContent.includes('読書'));
   assert.equal((await a.repo.read()).tasks[0].categoryId, 'free');
   a.close();
 });
+function categoryKey(a, row, key) {
+  const event = new a.window.Event('keydown', { bubbles: true, cancelable: true });
+  event.key = key;
+  row.dispatchEvent(event);
+}
+test('category editor stays compact until add or edit, and cancel retains the saved category', async () => {
+  const a = await app();
+  a.dispatch('open-categories', 'click');
+  assert.equal(a.get('category-form').hidden, true);
+  a.get('category-list').firstElementChild.click();
+  assert.equal(a.get('category-form').hidden, true);
+  a.dispatch('add-category', 'click');
+  assert.equal(a.get('category-form').hidden, false);
+  a.get('category-name').value = '散歩';
+  a.get('category-color').value = '#118877';
+  a.dispatch('category-form', 'submit');
+  await waitFor(() => a.get('category-form').hidden);
+  const added = [...a.get('category-list').children].find((row) =>
+    row.textContent.includes('散歩')
+  );
+  categoryKey(a, added, 'Enter');
+  assert.equal(a.get('category-color').value, '#118877');
+  a.get('category-name').value = '未保存';
+  a.dispatch('reset-category', 'click');
+  assert.equal(a.get('category-form').hidden, true);
+  assert.equal((await a.repo.read()).categories.at(-1).name, '散歩');
+  a.close();
+});
+test('category reorder saves the order, preserving tasks and a concurrent name change', async () => {
+  const a = await app();
+  a.dispatch('add-task', 'click');
+  fill(a);
+  await submit(a);
+  a.dispatch('open-categories', 'click');
+  const before = await a.repo.read();
+  const initialIds = Array.from(before.categories, (category) => category.id);
+  const first = a.get('category-list').firstElementChild;
+  await a.repo.mutate('rename elsewhere', (s) => {
+    s.categories[0].name = '変更された名前';
+    return s;
+  });
+  categoryKey(a, first, ' ');
+  assert.equal(a.get('category-done').hidden, false);
+  categoryKey(a, first, 'ArrowDown');
+  await waitFor(() => !a.get('category-list').classList.contains('category-reorder-busy'));
+  const after = await a.repo.read();
+  const expected = [initialIds[1], initialIds[0], ...initialIds.slice(2)];
+  assert.deepEqual(
+    Array.from(after.categories, (category) => category.id),
+    expected
+  );
+  assert.equal(after.categories[1].name, '変更された名前');
+  assert.deepEqual(after.tasks, before.tasks);
+  a.dispatch('category-done', 'click');
+  assert.equal(a.get('category-list').classList.contains('category-reorder-mode'), false);
+  assert.equal(a.get('categories-dialog').open, true);
+  a.get('categories-dialog').querySelector('[data-close]').click();
+  a.dispatch('open-categories', 'click');
+  assert.deepEqual(
+    [...a.get('category-list').children].map((row) => row.dataset.categoryId),
+    expected
+  );
+  a.close();
+});
+test('a concurrent category addition rejects stale reorder and restores its visible order', async () => {
+  const a = await app();
+  a.dispatch('open-categories', 'click');
+  const before = await a.repo.read();
+  const initialIds = Array.from(before.categories, (category) => category.id);
+  await a.repo.mutate('add elsewhere', (s) => {
+    s.categories.push({ id: 'elsewhere', name: '追加済み', color: '#113355' });
+    return s;
+  });
+  const first = a.get('category-list').firstElementChild;
+  categoryKey(a, first, ' ');
+  categoryKey(a, first, 'ArrowDown');
+  await waitFor(() => !a.get('category-error').hidden);
+  assert.match(a.get('category-error').textContent, /別の場所で変更/);
+  assert.deepEqual(
+    [...a.get('category-list').children].map((row) => row.dataset.categoryId),
+    initialIds
+  );
+  assert.deepEqual(
+    Array.from((await a.repo.read()).categories, (category) => category.id),
+    [...initialIds, 'elsewhere']
+  );
+  assert.equal(a.get('category-form').hidden, true);
+  a.close();
+});
+test('compact data controls export all formats and select the matching import type', async () => {
+  const a = await app();
+  a.dispatch('add-task', 'click');
+  fill(a);
+  await submit(a);
+  a.dispatch('open-settings', 'click');
+  assert.equal(a.get('calendar-export-range').hidden, true);
+  a.dispatch('export-data', 'click');
+  await waitFor(() => a.downloads.length === 1);
+  assert.match(a.downloads[0].name, /\.json$/);
+  assert.equal(JSON.parse(await a.downloads[0].blob.text()).tasks[0].name, '朝の読書');
+  a.dispatch('import-data', 'click');
+  assert.equal(a.get('file-input').accept, '.json,application/json');
+  a.get('data-format').value = 'ics';
+  a.dispatch('data-format', 'change');
+  assert.equal(a.get('calendar-export-range').hidden, false);
+  a.dispatch('export-data', 'click');
+  assert.match(a.downloads[1].name, /\.ics$/);
+  assert.match(await a.downloads[1].blob.text(), /BEGIN:VEVENT/);
+  a.dispatch('import-data', 'click');
+  assert.equal(a.get('file-input').accept, '.ics,text/calendar');
+  a.get('export-to').value = '2026-01-01';
+  a.dispatch('export-data', 'click');
+  assert.equal(a.downloads.length, 2);
+  assert.equal(a.get('settings-error').hidden, false);
+  a.get('data-format').value = 'svg';
+  a.dispatch('data-format', 'change');
+  assert.equal(a.get('calendar-export-range').hidden, true);
+  assert.equal(a.get('import-data').hidden, true);
+  a.dispatch('export-data', 'click');
+  assert.match(a.downloads[2].name, /\.svg$/);
+  assert.match(await a.downloads[2].blob.text(), /<svg/);
+  a.close();
+});
+
 test('template capture, editable content, append conflict and next-day apply', async () => {
   const a = await app();
   a.dispatch('add-task', 'click');
@@ -364,7 +586,7 @@ test('JSON import previews counts, retains prior state until confirm and is undo
   fill(a);
   await submit(a);
   a.dispatch('open-settings', 'click');
-  a.dispatch('import-json', 'click');
+  a.dispatch('import-data', 'click');
   const raw = JSON.stringify({
     ...a.C.initialState(),
     tasks: [

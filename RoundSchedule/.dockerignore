@@ -1,0 +1,12 @@
+.git
+.agents
+.codex
+.env
+.env.*
+.schedule-data
+.npm-cache
+node_modules
+dist
+test-results
+tests
+*.sqlite*
