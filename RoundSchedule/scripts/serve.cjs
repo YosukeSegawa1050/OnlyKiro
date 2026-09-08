@@ -4,6 +4,10 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const allowed = new Set([
   'index.html',
+  'update.html',
+  'update-page.js',
+  'updates.js',
+  'release.json',
   'RoundSchedule.html',
   'core.js',
   'storage.js',
@@ -42,7 +46,7 @@ const server = http.createServer((req, res) => {
     }
     res.writeHead(200, {
       'Content-Type': types[path.extname(name)],
-      'Cache-Control': 'no-cache',
+      'Cache-Control': name === 'release.json' ? 'no-store' : 'no-cache',
       'X-Content-Type-Options': 'nosniff',
     });
     res.end(req.method === 'HEAD' ? undefined : data);

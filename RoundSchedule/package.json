@@ -1,10 +1,10 @@
 {
   "name": "round-schedule",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "private": true,
   "scripts": {
     "start": "node scripts/serve.cjs",
-    "check": "node --check core.js && node --check storage.js && node --check notifications.js && node --check category-interactions.js && node --check app.js && node --check ds-sw.js && node --check shared-storage.js && node --check shared-ui.js && node --check server/store.cjs && node --check server/mcp.cjs && node --check server/http.cjs && node --check server/start.cjs && node --check server/auth.cjs",
+    "check": "node --check core.js && node --check storage.js && node --check notifications.js && node --check category-interactions.js && node --check updates.js && node --check update-page.js && node --check app.js && node --check ds-sw.js && node --check shared-storage.js && node --check shared-ui.js && node --check server/store.cjs && node --check server/mcp.cjs && node --check server/http.cjs && node --check server/start.cjs && node --check server/auth.cjs",
     "test": "node --test tests/*.test.cjs",
     "format": "prettier --write *.js *.css *.html scripts/*.cjs tests/*.cjs server/*.cjs",
     "format:check": "prettier --check *.js *.css *.html scripts/*.cjs tests/*.cjs server/*.cjs",

@@ -40,7 +40,7 @@ function worker({ cached = true, fetchResult = new Response('network'), failPut 
     self,
     caches: {
       open: async () => cache,
-      keys: async () => ['daily-schedule-v4', 'daily-schedule-2.2.0', 'another-app'],
+      keys: async () => ['daily-schedule-v4', 'daily-schedule-2.2.1', 'another-app'],
       delete: async (key) => deleted.push(key),
     },
     URL,
@@ -98,6 +98,28 @@ test('activate only deletes previous caches belonging to this application', asyn
   await p;
   assert.deepEqual(w.deleted, ['daily-schedule-v4']);
   assert.equal(w.claimed, true);
+});
+test('version requests identify the active release without accessing schedule data', () => {
+  const w = worker();
+  let response;
+  w.events.message({
+    data: { type: 'GET_VERSION' },
+    ports: [
+      {
+        postMessage: (value) => {
+          response = value;
+        },
+      },
+    ],
+  });
+  assert.equal(response.version, require('../core.js').VERSION);
+  assert.deepEqual(Object.keys(response), ['version']);
+  assert.doesNotThrow(() => w.events.message({ data: { type: 'GET_VERSION' } }));
+});
+test('release checks and the update recovery page always bypass the worker cache', async () => {
+  const w = worker();
+  for (const file of ['release.json', 'update.html', 'update-page.js'])
+    assert.equal(await w.fetchPath(`https://example.test/app/${file}`), undefined);
 });
 test('cached navigation starts instantly despite offline, server errors or slow network', async () => {
   const w = worker({ fetchResult: new Error('offline') });
@@ -172,6 +194,7 @@ test('manifest has real 192/512 PNG dimensions and all version declarations agre
   }
   const version = require('../core.js').VERSION;
   assert.equal(require('../package.json').version, version);
+  assert.equal(require('../release.json').version, version);
   const html = fs.readFileSync(path.join(__dirname, '../RoundSchedule.html'), 'utf8');
   assert.equal(
     [...html.matchAll(/\?v=([\d.]+)/g)].every((m) => m[1] === version),

@@ -1,16 +1,17 @@
 ﻿'use strict';
-const VERSION = '2.2.0';
+const VERSION = '2.2.1';
 const CACHE_NAME = `daily-schedule-${VERSION}`;
 const ASSETS = [
   './RoundSchedule.html',
-  './styles.css?v=2.2.0',
-  './core.js?v=2.2.0',
-  './storage.js?v=2.2.0',
-  './shared-storage.js?v=2.2.0',
-  './shared-ui.js?v=2.2.0',
-  './notifications.js?v=2.2.0',
-  './category-interactions.js?v=2.2.0',
-  './app.js?v=2.2.0',
+  './styles.css?v=2.2.1',
+  './core.js?v=2.2.1',
+  './storage.js?v=2.2.1',
+  './shared-storage.js?v=2.2.1',
+  './shared-ui.js?v=2.2.1',
+  './notifications.js?v=2.2.1',
+  './category-interactions.js?v=2.2.1',
+  './updates.js?v=2.2.1',
+  './app.js?v=2.2.1',
   './ds-manifest.json',
   './icon-192.png',
   './icon-512.png',
@@ -21,6 +22,7 @@ self.addEventListener('install', (event) => {
 });
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') event.waitUntil(self.skipWaiting());
+  if (event.data?.type === 'GET_VERSION') event.ports?.[0]?.postMessage({ version: VERSION });
 });
 self.addEventListener('activate', (event) => {
   event.waitUntil(

@@ -517,14 +517,16 @@
     });
   }
   function saveDraft() {
-    if (!edit) return;
+    if (!edit) return true;
     try {
       sessionStorage.setItem(
         'daily-schedule-draft',
         JSON.stringify({ edit, values: draftValues(), at: Date.now() })
       );
+      return true;
     } catch {
       toast('下書きを保存できません。画面を開いたまま内容を控えてください。');
+      return false;
     }
   }
   function clearDraft() {
@@ -1655,6 +1657,7 @@
           'notifications.js',
           'shared-ui.js',
           'category-interactions.js',
+          'updates.js',
           'app.js',
           'styles.css',
         ].map((f) => `./${f}?v=${C.VERSION}`),
@@ -1673,7 +1676,9 @@
       return;
     }
     try {
-      registration = await navigator.serviceWorker.register('./ds-sw.js');
+      registration = await navigator.serviceWorker.register('./ds-sw.js', {
+        updateViaCache: 'none',
+      });
       registration.addEventListener('updatefound', () => {
         const worker = registration.installing;
         worker?.addEventListener('statechange', () => {
@@ -1694,56 +1699,31 @@
       $('network-status').textContent = 'オフライン準備に失敗';
     }
   }
+  const updater = ScheduleUpdates.create({
+    currentVersion: C.VERSION,
+    baseURL: location.href,
+    beforeApply() {
+      if (document.querySelector('dialog[open]:not(#task-dialog)'))
+        throw new Error('編集中の画面を閉じてから更新してください');
+      if (!saveDraft()) throw new Error('下書きを保存できないため、更新を中止しました');
+    },
+    onProgress(message) {
+      $('update-app').textContent = message;
+    },
+  });
   $('update-app').addEventListener('click', async () => {
-    const b = $('update-app');
-    b.disabled = true;
+    const button = $('update-app');
+    if (button.disabled) return;
+    button.disabled = true;
     try {
-      if (navigator.onLine === false) throw new Error('オフラインです。接続後に更新してください');
-      if (!registration) throw new Error('更新機能を準備できませんでした。再読み込みしてください');
-      await registration.update();
-      if (registration.installing) {
-        await new Promise((resolve, reject) => {
-          const worker = registration.installing,
-            timer = setTimeout(
-              () =>
-                reject(
-                  new Error('更新の取得に時間がかかっています。しばらくして再確認してください')
-                ),
-              15000
-            );
-          const finish = () => {
-            if (worker.state === 'installed' || worker.state === 'activated') {
-              clearTimeout(timer);
-              resolve();
-            } else if (worker.state === 'redundant') {
-              clearTimeout(timer);
-              reject(new Error('更新を取得できませんでした'));
-            }
-          };
-          worker.addEventListener('statechange', finish);
-          finish();
-        });
-      }
-      if (registration.waiting) {
-        saveDraft();
-        const timer = setTimeout(
-          () => toast('更新が完了しませんでした。もう一度確認してください'),
-          10000
-        );
-        navigator.serviceWorker.addEventListener(
-          'controllerchange',
-          () => {
-            clearTimeout(timer);
-            location.reload();
-          },
-          { once: true }
-        );
-        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-      } else toast(`最新のバージョンです（${C.VERSION}）`);
-    } catch (e) {
-      toast(e.message);
+      const result = await updater.check();
+      if (result.status === 'reload') location.reload();
+      else toast(`最新のバージョンです（${result.version}）`);
+    } catch (error) {
+      toast(error.message);
     } finally {
-      b.disabled = false;
+      button.disabled = false;
+      button.textContent = registration?.waiting ? '新しい版を適用' : '更新を確認';
     }
   });
   window.addEventListener('beforeinstallprompt', (e) => {

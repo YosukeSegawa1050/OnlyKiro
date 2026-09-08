@@ -1013,6 +1013,10 @@ dialog details {
 .skip-link:focus {
   transform: none;
 }
+.update-page {
+  width: min(500px, calc(100% - 32px));
+  margin: 10vh auto;
+}
 [data-theme='dark'] {
   color-scheme: dark;
   --bg: #111823;

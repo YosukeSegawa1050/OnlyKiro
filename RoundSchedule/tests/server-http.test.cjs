@@ -152,6 +152,19 @@ test('public config reveals no private state; API and MCP require distinct authe
     401
   );
 });
+test('release metadata is fresh and the recovery page is available without a login', async (t) => {
+  const f = await fixture(t);
+  const release = await f.request('/release.json');
+  assert.equal(release.status, 200);
+  assert.equal(release.headers.get('cache-control'), 'no-store');
+  assert.deepEqual(await release.json(), { version: C.VERSION });
+  const recovery = await f.request('/update.html');
+  assert.equal(recovery.status, 200);
+  assert.match(await recovery.text(), /update-page\.js/);
+  for (const asset of ['/updates.js', '/update-page.js'])
+    assert.equal((await f.request(asset)).status, 200);
+});
+
 test('HTTP API initializes once, uses CAS and durable retry receipts, then undoes', async (t) => {
   const f = await fixture(t),
     cookie = await f.login();

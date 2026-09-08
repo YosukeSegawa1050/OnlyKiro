@@ -4,6 +4,10 @@ const root = path.resolve(__dirname, '..');
 const output = path.join(root, 'dist');
 const assets = [
   'index.html',
+  'update.html',
+  'update-page.js',
+  'updates.js',
+  'release.json',
   'RoundSchedule.html',
   'core.js',
   'storage.js',

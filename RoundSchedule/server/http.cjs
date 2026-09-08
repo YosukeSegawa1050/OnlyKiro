@@ -7,6 +7,10 @@ const { handleMcp } = require('./mcp.cjs');
 const { createAuth } = require('./auth.cjs');
 const ASSETS = new Set([
   'index.html',
+  'update.html',
+  'update-page.js',
+  'updates.js',
+  'release.json',
   'RoundSchedule.html',
   'core.js',
   'storage.js',
@@ -193,7 +197,7 @@ function createScheduleServer(options = {}) {
       }
       res.writeHead(200, {
         'Content-Type': TYPES[path.extname(name)],
-        'Cache-Control': 'no-cache',
+        'Cache-Control': name === 'release.json' ? 'no-store' : 'no-cache',
         'Content-Security-Policy':
           "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'",
       });

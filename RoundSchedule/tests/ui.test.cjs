@@ -18,6 +18,7 @@ async function app({
   indexedDB = new IDBFactory(),
   now = new Date('2026-09-08T12:00:00').getTime(),
   session = new Map(),
+  updateCheck,
 } = {}) {
   const { window } = parseHTML(fs.readFileSync(path.join(root, 'RoundSchedule.html'), 'utf8'));
   const { document } = window;
@@ -81,7 +82,8 @@ async function app({
       setItem: (k, v) => session.set(k, v),
       removeItem: (k) => session.delete(k),
     };
-  let instant = now;
+  let instant = now,
+    reloads = 0;
   class Clock extends Date {
     constructor(...args) {
       super(...(args.length ? args : [instant]));
@@ -96,7 +98,13 @@ async function app({
     localStorage: storage,
     sessionStorage,
     navigator: { onLine: true },
-    location: { search: '', href: 'http://localhost/RoundSchedule.html' },
+    location: {
+      search: '',
+      href: 'http://localhost/RoundSchedule.html',
+      reload() {
+        reloads++;
+      },
+    },
     Date: Clock,
     URL: DownloadURL,
     URLSearchParams,
@@ -126,9 +134,13 @@ async function app({
     'storage.js',
     'notifications.js',
     'category-interactions.js',
+    'updates.js',
     'app.js',
-  ])
+  ]) {
     vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), ctx, { filename: file });
+    if (file === 'updates.js' && updateCheck)
+      ctx.ScheduleUpdates = { create: (options) => ({ check: () => updateCheck(options) }) };
+  }
   await waitFor(() => document.getElementById('workspace').getAttribute('aria-busy') === 'false');
   const get = (id) => document.getElementById(id),
     dispatch = (id, type) =>
@@ -146,6 +158,9 @@ async function app({
     downloads,
     session,
     window,
+    get reloads() {
+      return reloads;
+    },
     setNow: (v) => {
       instant = v;
     },
@@ -654,6 +669,49 @@ test('display settings save and draft can explicitly be discarded', async () => 
   assert.equal(a.get('draft-note').hidden, true);
   a.close();
 });
+test('app update preserves the task draft before reloading and retains saved schedules', async () => {
+  const a = await app({
+    updateCheck: async ({ beforeApply }) => {
+      await beforeApply();
+      return { status: 'reload', version: '2.2.1' };
+    },
+  });
+  a.dispatch('add-task', 'click');
+  fill(a);
+  await submit(a);
+  const saved = await a.repo.read();
+  a.dispatch('add-task', 'click');
+  fill(a, { name: '更新中の下書き', start: '14:00', end: '15:00' });
+  a.dispatch('update-app', 'click');
+  await waitFor(() => a.reloads === 1);
+  const draft = JSON.parse(a.session.get('daily-schedule-draft'));
+  assert.equal(draft.values['task-name'], '更新中の下書き');
+  assert.deepEqual((await a.repo.read()).tasks, saved.tasks);
+  a.close();
+});
+test('failed draft persistence cancels app update and restores its button for retry', async () => {
+  const session = new Map();
+  const a = await app({
+    session,
+    updateCheck: async ({ beforeApply, onProgress }) => {
+      onProgress('更新を確認中…');
+      await beforeApply();
+      return { status: 'reload', version: '2.2.1' };
+    },
+  });
+  a.dispatch('add-task', 'click');
+  fill(a);
+  session.set = () => {
+    throw new Error('full');
+  };
+  a.dispatch('update-app', 'click');
+  await waitFor(() => !a.get('update-app').disabled);
+  assert.equal(a.reloads, 0);
+  assert.match(a.get('toast').textContent, /更新を中止/);
+  assert.equal(a.get('task-name').value, '朝の読書');
+  a.close();
+});
+
 test('template capture keeps its displayed day after midnight', async () => {
   const a = await app({ now: new Date('2026-09-08T23:59:00').getTime() });
   a.dispatch('add-task', 'click');

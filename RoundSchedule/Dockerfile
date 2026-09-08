@@ -9,7 +9,7 @@ WORKDIR /app
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY package.json ./
 COPY server ./server
-COPY index.html RoundSchedule.html core.js storage.js shared-storage.js shared-ui.js notifications.js category-interactions.js app.js styles.css ds-sw.js ds-manifest.json icon-192.png icon-512.png schedule-icon.svg ./
+COPY update.html update-page.js updates.js release.json index.html RoundSchedule.html core.js storage.js shared-storage.js shared-ui.js notifications.js category-interactions.js app.js styles.css ds-sw.js ds-manifest.json icon-192.png icon-512.png schedule-icon.svg ./
 RUN mkdir -p /app/.schedule-data && chown node:node /app/.schedule-data
 USER node
 EXPOSE 8787
