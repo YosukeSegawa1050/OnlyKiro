@@ -1,0 +1,5 @@
+node_modules/
+.npm-cache/
+test-results/
+dist/
+.DS_Store
