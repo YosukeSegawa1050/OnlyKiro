@@ -286,7 +286,7 @@
 
 <nav class="fixed z-40 inset-x-4 bottom-3 max-w-md mx-auto bg-white/75 backdrop-blur border border-white/80 shadow-lg rounded-2xl px-2 py-2 flex justify-around">
   <a href="./menu.html?view=weak" class="px-3 py-1.5 text-xs font-bold text-gray-600 hover:text-indigo-600">📊 苦手</a>
-  <a href="./menu.html?view=badges" class="px-3 py-1.5 text-xs font-bold text-gray-600 hover:text-indigo-600">🏅 バッジ</a>
+  <a href="./menu.html?view=menu" class="px-3 py-1.5 text-xs font-bold text-gray-600 hover:text-indigo-600">📚 メニュー</a>
   <a href="./menu.html?view=settings" class="px-3 py-1.5 text-xs font-bold text-gray-600 hover:text-indigo-600">⚙️ 設定</a>
 </nav>
 
@@ -1479,7 +1479,7 @@ document.querySelectorAll('.game-select-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     if (btn.dataset.game === 'triple') showTripleDifficultySelect();
     if (btn.dataset.game === 'fake') showFakeModeSelect();
-    if (btn.dataset.game === 'dungeon') startDungeonGame();
+    if (btn.dataset.game === 'dungeon') showDungeonDifficultySelect();
     if (btn.dataset.game === 'listening') startListeningGame();
   });
 });
@@ -1524,6 +1524,92 @@ document.addEventListener('keydown', e => {
     dismissFlashcard('left');
   }
 });
+
+// ===== 画面全体の左スワイプで前の画面へ戻る =====
+function navigateBackFromCurrentScreen() {
+  if (!elements.gameMode.classList.contains('hidden')) {
+    if (!elements.gamePlayArea.classList.contains('hidden')) {
+      activeGame = null;
+      stopGameTimers();
+      enterGameMode();
+    } else {
+      exitGameMode();
+    }
+    return true;
+  }
+
+  if (!elements.testMode.classList.contains('hidden')) {
+    const isTopLevel = !$('test-category-select').classList.contains('hidden') ||
+      !$('test-empty').classList.contains('hidden');
+    const isModeSelect = !$('test-type-select').classList.contains('hidden') ||
+      !$('flashcard-type-select').classList.contains('hidden');
+
+    if (isTopLevel) {
+      exitTestMode();
+    } else if (isModeSelect) {
+      enterTestMode();
+    } else if (testState.mode === 'writing') {
+      enterWritingMode();
+    } else if (testState.mode === 'flashcard') {
+      enterFlashcardMode();
+    } else {
+      enterTestMode();
+    }
+    return true;
+  }
+
+  const hasLessonBackButton = Boolean($('btn-back-to-lessons'));
+  if (!elements.wordbookMode.classList.contains('hidden') &&
+      (currentView === 'words' || hasLessonBackButton)) {
+    searchInput.value = '';
+    lessonSuggest.classList.add('hidden');
+    renderLessonList();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    return true;
+  }
+
+  return false;
+}
+
+(function initGlobalSwipeBack() {
+  const minimumDistance = 90;
+  const maximumDuration = 1000;
+  let startX = 0;
+  let startY = 0;
+  let startTime = 0;
+  let shouldIgnore = false;
+
+  document.addEventListener('touchstart', event => {
+    if (event.touches.length !== 1) {
+      shouldIgnore = true;
+      return;
+    }
+
+    const target = event.target;
+    shouldIgnore = Boolean(target.closest('#flashcard, input, textarea, select, [contenteditable="true"]'));
+    startX = event.touches[0].clientX;
+    startY = event.touches[0].clientY;
+    startTime = Date.now();
+  }, { passive: true });
+
+  document.addEventListener('touchend', event => {
+    if (shouldIgnore || event.changedTouches.length !== 1) return;
+
+    const deltaX = event.changedTouches[0].clientX - startX;
+    const deltaY = event.changedTouches[0].clientY - startY;
+    const elapsed = Date.now() - startTime;
+    const isLeftSwipe = deltaX <= -minimumDistance;
+    const isMostlyHorizontal = Math.abs(deltaX) > Math.abs(deltaY) * 1.25;
+
+    if (isLeftSwipe && isMostlyHorizontal && elapsed <= maximumDuration && navigateBackFromCurrentScreen()) {
+      event.preventDefault();
+    }
+  }, { passive: false });
+
+  document.addEventListener('touchcancel', () => {
+    shouldIgnore = true;
+  }, { passive: true });
+})();
 
 // ===== 初期化 =====
 const wordsReady = initWords();
@@ -1927,17 +2013,40 @@ function clearOptionFeedback() {
   });
 }
 
-function startDungeonGame() {
+const DUNGEON_DIFFICULTIES = {
+  easy: { label: 'Easy', multiplier: 0.5, bossHp: 25, coins: 5, xp: 10, buttonClass: 'bg-green-50 border-green-200', labelClass: 'text-green-700' },
+  normal: { label: 'Nomal', multiplier: 1, bossHp: 50, coins: 10, xp: 20, buttonClass: 'bg-amber-50 border-amber-200', labelClass: 'text-amber-700' },
+  hard: { label: 'Hard', multiplier: 3, bossHp: 150, coins: 30, xp: 60, buttonClass: 'bg-rose-50 border-rose-200', labelClass: 'text-rose-700' },
+  expert: { label: 'Expart', multiplier: 10, bossHp: 500, coins: 100, xp: 200, buttonClass: 'bg-purple-50 border-purple-200', labelClass: 'text-purple-700' },
+};
+
+function showDungeonDifficultySelect() {
+  showGameContent(`<div class="text-center"><h3 class="font-bold text-emerald-700">⚔️ 難易度を選択</h3><p class="mt-1 text-xs text-gray-500">プレイヤーの体力は全難易度で同じです</p><div class="mt-5 grid gap-3">${Object.entries(DUNGEON_DIFFICULTIES).map(([key, setting]) => `<button data-dungeon-level="${key}" class="p-4 rounded-xl border text-left ${setting.buttonClass}"><b class="${setting.labelClass}">${setting.label}</b><span class="ml-2 text-xs text-gray-500">×${setting.multiplier}・ボスHP ${setting.bossHp}・報酬 ${setting.coins}コイン / ${setting.xp} EXP</span></button>`).join('')}</div></div>`);
+  document.querySelectorAll('[data-dungeon-level]').forEach(button => {
+    button.addEventListener('click', () => startDungeonGame(button.dataset.dungeonLevel));
+  });
+}
+
+function startDungeonGame(level = 'normal') {
+  const difficulty = DUNGEON_DIFFICULTIES[level] || DUNGEON_DIFFICULTIES.normal;
   activeGame = 'dungeon';
-  dungeonState = { playerHp: 30, enemyHp: 24, combo: 0, stage: 1, current: null };
+  dungeonState = {
+    playerHp: 30,
+    enemyHp: 24,
+    combo: 0,
+    stage: 1,
+    current: null,
+    difficulty,
+  };
   showDungeonTurn();
 }
 
 function getDungeonEnemy(stage) {
+  const bossHp = dungeonState?.difficulty?.bossHp || DUNGEON_DIFFICULTIES.normal.bossHp;
   return [
     { name: '単語スライム', icon: '🟢', hp: 24 },
     { name: '発音ウルフ', icon: '🐺', hp: 36 },
-    { name: '語彙ドラゴン', icon: '🐉', hp: 50 },
+    { name: '語彙ドラゴン', icon: '🐉', hp: bossHp },
   ][stage - 1];
 }
 
@@ -1959,11 +2068,11 @@ function showDungeonTurn(message = '中国語の意味を選んで攻撃！') {
       return showDungeonTurn(`✨ ステージ ${state.stage}！ HPを8回復`);
     }
     recordCompletedGame();
-    gameState.coins += 10;
-    gameState.xp += 20;
+    gameState.coins += state.difficulty.coins;
+    gameState.xp += state.difficulty.xp;
     saveGameState();
     renderGameDashboard();
-    $('game-play-area').innerHTML = '<div class="text-center py-10"><p class="text-3xl font-bold text-emerald-600">🏆 ダンジョン制覇！</p><p class="mt-3 text-gray-600">ボス撃破報酬：10コイン・20 EXP</p><button id="btn-game-back" class="mt-5 px-5 py-2 bg-gray-100 rounded-lg font-bold">ゲーム一覧へ</button></div>';
+    $('game-play-area').innerHTML = `<div class="text-center py-10"><p class="text-3xl font-bold text-emerald-600">🏆 ダンジョン制覇！</p><p class="mt-2 text-sm font-bold text-emerald-700">${state.difficulty.label}</p><p class="mt-3 text-gray-600">ボス撃破報酬：${state.difficulty.coins}コイン・${state.difficulty.xp} EXP</p><button id="btn-game-back" class="mt-5 px-5 py-2 bg-gray-100 rounded-lg font-bold">ゲーム一覧へ</button></div>`;
     $('btn-game-back').addEventListener('click', enterGameMode);
     return;
   }
@@ -1972,7 +2081,7 @@ function showDungeonTurn(message = '中国語の意味を選んで攻撃！') {
   const area = $('game-play-area');
   setHidden($('game-select'), true); setHidden(area, false);
   const enemy = getDungeonEnemy(state.stage);
-  area.innerHTML = `<div class="flex justify-between text-sm font-bold mb-4"><span class="text-blue-600">あなた HP ${state.playerHp}</span><span class="text-emerald-600">${enemy.icon} ${enemy.name} HP ${state.enemyHp}</span></div><p class="mb-2 text-center text-xs font-bold text-emerald-600">ステージ ${state.stage} / 3${state.stage === 3 ? '　BOSS' : ''}</p><div class="rounded-2xl bg-emerald-50 p-5 text-center"><p class="text-xs text-gray-500">${escapeHtml(message)}</p><div class="mt-3 text-3xl font-black text-gray-800">${escapeHtml(word.hanzi)}</div><div class="text-sm text-blue-500">${escapeHtml(word.pinyin)}</div></div><div id="dungeon-options" class="mt-5 grid gap-2"></div><p class="mt-3 text-center text-xs text-amber-600">コンボ ${state.combo}</p>`;
+  area.innerHTML = `<div class="flex justify-between text-sm font-bold mb-4"><span class="text-blue-600">あなた HP ${state.playerHp}</span><span class="text-emerald-600">${enemy.icon} ${enemy.name} HP ${state.enemyHp}</span></div><p class="mb-2 text-center text-xs font-bold text-emerald-600">${state.difficulty.label}　ステージ ${state.stage} / 3${state.stage === 3 ? '　BOSS' : ''}</p><div class="rounded-2xl bg-emerald-50 p-5 text-center"><p class="text-xs text-gray-500">${escapeHtml(message)}</p><div class="mt-3 text-3xl font-black text-gray-800">${escapeHtml(word.hanzi)}</div><div class="text-sm text-blue-500">${escapeHtml(word.pinyin)}</div></div><div id="dungeon-options" class="mt-5 grid gap-2"></div><p class="mt-3 text-center text-xs text-amber-600">コンボ ${state.combo}</p>`;
   renderChoiceButtons(
     'dungeon-options',
     makeChoices(word, 'meaning'),

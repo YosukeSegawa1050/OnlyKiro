@@ -17,7 +17,7 @@
 <main class="max-w-2xl mx-auto">
   <header class="flex items-center justify-between mb-6">
     <div><p class="text-xs font-bold text-indigo-500">LEARNING MENU</p><h1 id="menu-title" class="text-2xl font-bold text-gray-800"></h1></div>
-    <a href="./Hanyu.html" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-bold rounded-lg">← 単語帳へ</a>
+    <a id="menu-back" href="./Hanyu.html" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-bold rounded-lg">← 単語帳へ</a>
   </header>
   <section class="bg-white rounded-2xl shadow-lg p-5 sm:p-6">
     <div id="menu-content"></div>
@@ -28,7 +28,9 @@
 const GAME_STATE_KEY = 'hanyu_game_state';
 const $ = id => document.getElementById(id);
 const escapeHtml = value => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-const view = new URLSearchParams(location.search).get('view') || 'weak';
+let currentMenuView = new URLSearchParams(location.search).get('view') || 'menu';
+let currentMenuState = {};
+let currentMenuWords = [];
 
 function loadGameState() {
   try { return JSON.parse(localStorage.getItem(GAME_STATE_KEY)) || {}; }
@@ -80,19 +82,48 @@ function renderBadgeDetail(container, badge) {
 }
 
 async function init() {
-  const state = loadGameState();
-  applyTheme(state);
+  currentMenuState = loadGameState();
+  applyTheme(currentMenuState);
   const response = await fetch('./words.json', { cache: 'no-cache' });
   const data = response.ok ? await response.json() : { words: [] };
   const userWords = JSON.parse(localStorage.getItem('hanyu_wordbook') || '[]');
-  const words = [...userWords, ...(data.words || [])];
-  render(state, words);
+  currentMenuWords = [...userWords, ...(data.words || [])];
+  render(currentMenuState, currentMenuWords);
+}
+
+function showMenuView(nextView, pushHistory = true) {
+  currentMenuView = nextView;
+  if (pushHistory) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('view', nextView);
+    history.pushState({ view: nextView }, '', url);
+  }
+  render(currentMenuState, currentMenuWords);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function updateMenuBackLink() {
+  const backLink = $('menu-back');
+  const isMenuChild = currentMenuView === 'badges' || currentMenuView === 'inventory';
+  backLink.textContent = isMenuChild ? '← メニューへ' : '← 単語帳へ';
+  backLink.href = isMenuChild ? './menu.html?view=menu' : './Hanyu.html';
 }
 
 function render(state, words) {
   const content = $('menu-content');
   const stats = state.stats || {};
-  if (view === 'weak') {
+  updateMenuBackLink();
+
+  if (currentMenuView === 'menu') {
+    $('menu-title').textContent = '📚 メニュー';
+    content.innerHTML = `<div class="grid grid-cols-1 sm:grid-cols-2 gap-4"><button data-menu-item="badges" class="p-6 rounded-2xl border-2 border-amber-100 bg-amber-50 hover:border-amber-400 text-left transition active:scale-[.98]"><span class="text-3xl">🏅</span><b class="mt-3 block text-lg text-amber-700">バッジ</b><span class="mt-1 block text-xs text-gray-500">獲得状況と進捗を確認する</span></button><button data-menu-item="inventory" class="p-6 rounded-2xl border-2 border-emerald-100 bg-emerald-50 hover:border-emerald-400 text-left transition active:scale-[.98]"><span class="text-3xl">🎒</span><b class="mt-3 block text-lg text-emerald-700">持ち物</b><span class="mt-1 block text-xs text-gray-500">所持しているアイテムを確認する</span></button></div>`;
+    document.querySelectorAll('[data-menu-item]').forEach(button => {
+      button.addEventListener('click', () => showMenuView(button.dataset.menuItem));
+    });
+    return;
+  }
+
+  if (currentMenuView === 'weak') {
     $('menu-title').textContent = '📊 苦手単語';
     const weakWords = words.map(word => ({ word, stat: stats[getWordId(word)] || {} }))
       .filter(({ stat }) => (stat.correct || 0) + (stat.wrong || 0) > 0)
@@ -101,7 +132,7 @@ function render(state, words) {
     content.innerHTML = weakWords.length ? `<div class="space-y-3">${weakWords.map(({ word, stat }) => `<div class="flex items-center justify-between rounded-xl bg-indigo-50 p-4"><div><b class="text-lg text-gray-800">${escapeHtml(word.hanzi)}</b><span class="ml-2 text-sm text-blue-500">${escapeHtml(word.pinyin)}</span><p class="text-sm text-gray-500">${escapeHtml(word.meaning)}</p></div><span class="text-sm font-bold text-indigo-600">正 ${stat.correct || 0} / 誤 ${stat.wrong || 0}</span></div>`).join('')}</div>` : '<p class="py-10 text-center text-gray-400">ゲームをプレイすると苦手単語を分析します。</p>';
     return;
   }
-  if (view === 'badges') {
+  if (currentMenuView === 'badges') {
     $('menu-title').textContent = '🏅 バッジ';
     const badges = getBadgeDefinitions(state);
     content.innerHTML = `<p class="mb-4 text-sm text-gray-500">バッジをタップすると、すぐ下に達成内容と進捗を表示します。</p><div class="grid grid-cols-2 sm:grid-cols-3 gap-3">${badges.map(badge => `<div class="aspect-square rounded-xl ${badge.unlocked ? 'bg-amber-50 border border-amber-200 text-amber-700' : 'bg-gray-50 text-gray-400 border border-gray-100'}"><button data-badge-id="${badge.id}" class="badge-btn w-full h-full p-3 text-center flex flex-col items-center justify-center transition active:scale-[.98]"><b class="text-base leading-tight">${badge.icon}<span class="block mt-1">${escapeHtml(badge.label)}</span></b><p class="mt-2 text-xs">${badge.unlocked ? '獲得済み　✓' : '未獲得　🔒'}</p></button><div class="badge-inline-detail hidden mx-3 mb-3"></div></div>`).join('')}</div>`;
@@ -122,6 +153,13 @@ function render(state, words) {
     }));
     return;
   }
+
+  if (currentMenuView === 'inventory') {
+    $('menu-title').textContent = '🎒 持ち物';
+    content.innerHTML = '<div class="py-12 text-center"><p class="text-5xl">🎒</p><p class="mt-4 font-bold text-gray-700">持ち物はまだありません</p><p class="mt-1 text-sm text-gray-400">入手したアイテムがここに表示されます。</p></div>';
+    return;
+  }
+
   $('menu-title').textContent = '⚙️ 設定';
   const themes = [{ id:'default', label:'標準', cost:0 }, { id:'sunset', label:'夕焼け', cost:10 }, { id:'night', label:'ナイト', cost:20 }];
   content.innerHTML = `<p class="text-sm text-gray-500">所持コイン：<b class="text-amber-500">${state.coins || 0}</b></p><div class="mt-4 grid gap-3">${themes.map(theme => { const owned = theme.cost === 0 || (state.unlockedThemes || []).includes(theme.id); const selected = state.theme === theme.id; return `<button data-theme="${theme.id}" data-cost="${theme.cost}" class="theme-btn p-4 rounded-xl text-left font-bold ${selected ? 'bg-indigo-600 text-white' : 'bg-gray-50 border border-gray-200 text-gray-700'}">${theme.label}${owned ? '' : `　🔒 ${theme.cost}コイン`}${selected ? '　✓ 使用中' : ''}</button>`; }).join('')}</div>`;
@@ -139,8 +177,59 @@ function selectTheme(state, theme, cost) {
   state.theme = theme;
   saveGameState(state);
   applyTheme(state);
-  render(state, []);
+  render(state, currentMenuWords);
 }
+
+$('menu-back').addEventListener('click', event => {
+  if (currentMenuView !== 'badges' && currentMenuView !== 'inventory') return;
+  event.preventDefault();
+  showMenuView('menu');
+});
+
+window.addEventListener('popstate', () => {
+  currentMenuView = new URLSearchParams(location.search).get('view') || 'menu';
+  render(currentMenuState, currentMenuWords);
+});
+
+// 画面全体を左へスワイプしたら一つ前の画面へ戻る。
+(function initGlobalSwipeBack() {
+  const minimumDistance = 90;
+  const maximumDuration = 1000;
+  let startX = 0;
+  let startY = 0;
+  let startTime = 0;
+  let shouldIgnore = false;
+
+  document.addEventListener('touchstart', event => {
+    if (event.touches.length !== 1) {
+      shouldIgnore = true;
+      return;
+    }
+    shouldIgnore = Boolean(event.target.closest('input, textarea, select, [contenteditable="true"]'));
+    startX = event.touches[0].clientX;
+    startY = event.touches[0].clientY;
+    startTime = Date.now();
+  }, { passive: true });
+
+  document.addEventListener('touchend', event => {
+    if (shouldIgnore || event.changedTouches.length !== 1) return;
+    const deltaX = event.changedTouches[0].clientX - startX;
+    const deltaY = event.changedTouches[0].clientY - startY;
+    const elapsed = Date.now() - startTime;
+    if (deltaX <= -minimumDistance && Math.abs(deltaX) > Math.abs(deltaY) * 1.25 && elapsed <= maximumDuration) {
+      event.preventDefault();
+      if (currentMenuView === 'badges' || currentMenuView === 'inventory') {
+        showMenuView('menu');
+      } else {
+        window.location.href = './Hanyu.html';
+      }
+    }
+  }, { passive: false });
+
+  document.addEventListener('touchcancel', () => {
+    shouldIgnore = true;
+  }, { passive: true });
+})();
 
 init().catch(() => { $('menu-title').textContent = 'メニュー'; $('menu-content').textContent = 'データを読み込めませんでした。'; });
 </script>
