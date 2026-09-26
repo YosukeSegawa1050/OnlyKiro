@@ -31,6 +31,7 @@ const escapeHtml = value => String(value ?? '').replace(/&/g, '&amp;').replace(/
 let currentMenuView = new URLSearchParams(location.search).get('view') || 'menu';
 let currentMenuState = {};
 let currentMenuWords = [];
+const MENU_CHILD_VIEWS = new Set(['badges', 'inventory', 'shop']);
 
 function loadGameState() {
   try { return JSON.parse(localStorage.getItem(GAME_STATE_KEY)) || {}; }
@@ -104,7 +105,7 @@ function showMenuView(nextView, pushHistory = true) {
 
 function updateMenuBackLink() {
   const backLink = $('menu-back');
-  const isMenuChild = currentMenuView === 'badges' || currentMenuView === 'inventory';
+  const isMenuChild = MENU_CHILD_VIEWS.has(currentMenuView);
   backLink.textContent = isMenuChild ? '← メニューへ' : '← 単語帳へ';
   backLink.href = isMenuChild ? './menu.html?view=menu' : './Hanyu.html';
 }
@@ -116,7 +117,7 @@ function render(state, words) {
 
   if (currentMenuView === 'menu') {
     $('menu-title').textContent = '📚 メニュー';
-    content.innerHTML = `<div class="grid grid-cols-1 sm:grid-cols-2 gap-4"><button data-menu-item="badges" class="p-6 rounded-2xl border-2 border-amber-100 bg-amber-50 hover:border-amber-400 text-left transition active:scale-[.98]"><span class="text-3xl">🏅</span><b class="mt-3 block text-lg text-amber-700">バッジ</b><span class="mt-1 block text-xs text-gray-500">獲得状況と進捗を確認する</span></button><button data-menu-item="inventory" class="p-6 rounded-2xl border-2 border-emerald-100 bg-emerald-50 hover:border-emerald-400 text-left transition active:scale-[.98]"><span class="text-3xl">🎒</span><b class="mt-3 block text-lg text-emerald-700">持ち物</b><span class="mt-1 block text-xs text-gray-500">所持しているアイテムを確認する</span></button></div>`;
+    content.innerHTML = `<div class="grid grid-cols-1 sm:grid-cols-3 gap-4"><button data-menu-item="badges" class="p-6 rounded-2xl border-2 border-amber-100 bg-amber-50 hover:border-amber-400 text-left transition active:scale-[.98]"><span class="text-3xl">🏅</span><b class="mt-3 block text-lg text-amber-700">バッジ</b><span class="mt-1 block text-xs text-gray-500">獲得状況と進捗を確認する</span></button><button data-menu-item="inventory" class="p-6 rounded-2xl border-2 border-emerald-100 bg-emerald-50 hover:border-emerald-400 text-left transition active:scale-[.98]"><span class="text-3xl">🎒</span><b class="mt-3 block text-lg text-emerald-700">持ち物</b><span class="mt-1 block text-xs text-gray-500">所持しているアイテムを確認する</span></button><button data-menu-item="shop" class="p-6 rounded-2xl border-2 border-violet-100 bg-violet-50 hover:border-violet-400 text-left transition active:scale-[.98]"><span class="text-3xl">🛒</span><b class="mt-3 block text-lg text-violet-700">ショップ</b><span class="mt-1 block text-xs text-gray-500">コインで持ち物を購入する</span></button></div>`;
     document.querySelectorAll('[data-menu-item]').forEach(button => {
       button.addEventListener('click', () => showMenuView(button.dataset.menuItem));
     });
@@ -160,6 +161,12 @@ function render(state, words) {
     return;
   }
 
+  if (currentMenuView === 'shop') {
+    $('menu-title').textContent = '🛒 ショップ';
+    content.innerHTML = `<div class="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 p-4"><span class="text-sm font-bold text-amber-800">所持コイン</span><b class="text-xl text-amber-600">🪙 ${state.coins || 0}</b></div><div class="py-12 text-center"><p class="text-5xl">🏪</p><p class="mt-4 font-bold text-gray-700">商品を準備中です</p><p class="mt-1 text-sm text-gray-400">今後、コインで持ち物を購入できるようになります。</p></div>`;
+    return;
+  }
+
   $('menu-title').textContent = '⚙️ 設定';
   const themes = [{ id:'default', label:'標準', cost:0 }, { id:'sunset', label:'夕焼け', cost:10 }, { id:'night', label:'ナイト', cost:20 }];
   content.innerHTML = `<p class="text-sm text-gray-500">所持コイン：<b class="text-amber-500">${state.coins || 0}</b></p><div class="mt-4 grid gap-3">${themes.map(theme => { const owned = theme.cost === 0 || (state.unlockedThemes || []).includes(theme.id); const selected = state.theme === theme.id; return `<button data-theme="${theme.id}" data-cost="${theme.cost}" class="theme-btn p-4 rounded-xl text-left font-bold ${selected ? 'bg-indigo-600 text-white' : 'bg-gray-50 border border-gray-200 text-gray-700'}">${theme.label}${owned ? '' : `　🔒 ${theme.cost}コイン`}${selected ? '　✓ 使用中' : ''}</button>`; }).join('')}</div>`;
@@ -181,7 +188,7 @@ function selectTheme(state, theme, cost) {
 }
 
 $('menu-back').addEventListener('click', event => {
-  if (currentMenuView !== 'badges' && currentMenuView !== 'inventory') return;
+  if (!MENU_CHILD_VIEWS.has(currentMenuView)) return;
   event.preventDefault();
   showMenuView('menu');
 });
@@ -218,7 +225,7 @@ window.addEventListener('popstate', () => {
     const elapsed = Date.now() - startTime;
     if (deltaX <= -minimumDistance && Math.abs(deltaX) > Math.abs(deltaY) * 1.25 && elapsed <= maximumDuration) {
       event.preventDefault();
-      if (currentMenuView === 'badges' || currentMenuView === 'inventory') {
+      if (MENU_CHILD_VIEWS.has(currentMenuView)) {
         showMenuView('menu');
       } else {
         window.location.href = './Hanyu.html';
