@@ -1,6 +1,6 @@
 # ChatGPTから予定を閲覧・編集する
 
-Daily Schedule 2.2.1の共有接続手順です。予定表とChatGPTが同じSQLiteデータを使い、個人1人の予定の一覧・検索・追加・編集・削除に対応します。公開先は未定のため、HTTPS公開と利用者自身のChatGPTでの登録は未実施です。
+Daily Schedule 2.2.2の共有接続手順です。予定表とChatGPTが同じSQLiteデータを使い、個人1人の予定の一覧・検索・追加・編集・削除に対応します。公開先は未定のため、HTTPS公開と利用者自身のChatGPTでの登録は未実施です。公開せずGoogleカレンダーを経由する方法は [GOOGLE_CALENDAR_CONNECTION.md](GOOGLE_CALENDAR_CONNECTION.md) を参照してください。
 
 ## このPCで起動
 

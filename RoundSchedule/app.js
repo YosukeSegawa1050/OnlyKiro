@@ -36,6 +36,7 @@
   const repo = new (globalThis.ScheduleShared?.Repository || ScheduleStorage.Repository)({
     legacyStorage: { getItem: (key) => localStorage.getItem(key) },
   });
+  const google = globalThis.ScheduleGoogle && new globalThis.ScheduleGoogle.Connection();
   const notifier = new ScheduleNotifications.NotificationManager(repo, {
     onError: (e) => toast(e.message),
   });
@@ -495,6 +496,7 @@
     'task-url',
     'task-status',
     'task-notification',
+    'task-google',
     'repeat-scope',
   ];
   function draftValues() {
@@ -587,6 +589,7 @@
     if (base) {
       edit = { id: base.id, base: C.copy(base), occDate: occ.date };
       fillTask({ ...occ, repeat: null });
+      $('task-google').checked = !!globalThis.ScheduleGoogle?.isGoogleTask(base);
       $('repeat-scope').value = 'one';
     } else {
       const now = new Date(),
@@ -620,6 +623,7 @@
       };
       edit = { id: null, base: null, occDate: selectedDate, newId: t.id };
       fillTask(t);
+      $('task-google').checked = !!google?.connected && !repo.sharedEnabled;
     }
     finishTaskOpen();
   }
@@ -632,6 +636,10 @@
     openDialog('task-dialog');
   }
   function updateTaskFields() {
+    const googleTask = !!globalThis.ScheduleGoogle?.isGoogleTask(edit?.base);
+    $('task-kind').querySelector('option[value="unscheduled"]').disabled = googleTask;
+    $('task-repeat').disabled = googleTask;
+    if (googleTask) $('task-repeat').checked = false;
     const kind = $('task-kind').value,
       timed = kind === 'timed';
     $('time-fields').hidden = !timed;
@@ -643,6 +651,13 @@
     $('repeat-details').hidden = !!single;
     $('repeat-fields').hidden = !$('task-repeat').checked;
     $('repeat-until').required = $('task-repeat').checked && !single;
+    const eligible = kind !== 'unscheduled' && !$('task-repeat').checked;
+    $('google-save-field').hidden =
+      !googleTask && (!google?.connected || !!edit?.id || repo.sharedEnabled);
+    $('task-google').disabled = googleTask || !eligible || !google?.connected || repo.sharedEnabled;
+    if (googleTask) $('task-google').checked = true;
+    if ((!eligible || !google?.connected || repo.sharedEnabled) && !googleTask)
+      $('task-google').checked = false;
     try {
       const date = $('task-date').value,
         endDate = kind === 'unscheduled' ? date : $('task-end-date').value;
@@ -774,6 +789,28 @@
       const value = readTask(),
         context = C.copy(edit),
         one = context.base?.repeat && $('repeat-scope').value === 'one';
+      const googleTask = globalThis.ScheduleGoogle?.isGoogleTask(context.base);
+      if (googleTask || (!context.id && $('task-google').checked)) {
+        if (repo.sharedEnabled) throw new Error('共有予定とGoogle連携は同時に編集できません');
+        if (!google?.connected) throw new Error('Googleに再接続してから保存してください');
+        if (googleTask && (value.kind === 'unscheduled' || value.repeat))
+          throw new Error('Googleの予定は日時付き・終日の予定として保存してください');
+        if (googleTask) checkedOriginal(state, context);
+        C.assertAvailable(
+          state.tasks.filter((task) => task.id !== context.id),
+          value
+        );
+        if (googleTask) await google.update(value);
+        else await google.create(value);
+        const synced = await google.sync(repo, value);
+        applyState(synced.state);
+        channel?.postMessage({ revision: synced.state.revision });
+        toast('Googleカレンダーに予定を保存しました');
+        clearDraft();
+        edit = null;
+        $('task-dialog').close();
+        return;
+      }
       await commit('予定を保存', (s) => {
         if (!context.id && s.tasks.some((task) => task.id === value.id))
           throw new Error(
@@ -807,11 +844,25 @@
       one = context.base?.repeat && $('repeat-scope').value === 'one';
     if (
       !confirm(
-        `${one ? 'この回の' : context.base.repeat ? '繰り返し全体の' : ''}予定「${context.base.name}」を削除しますか？直後なら「元に戻す」で取り消せます。`
+        `${one ? 'この回の' : context.base.repeat ? '繰り返し全体の' : ''}予定「${context.base.name}」を削除しますか？${globalThis.ScheduleGoogle?.isGoogleTask(context.base) ? 'Googleカレンダーからも削除します。この操作は元に戻せません。' : '直後なら「元に戻す」で取り消せます。'}`
       )
     )
       return;
     try {
+      if (globalThis.ScheduleGoogle?.isGoogleTask(context.base)) {
+        if (repo.sharedEnabled) throw new Error('共有予定とGoogle連携は同時に編集できません');
+        if (!google?.connected) throw new Error('Googleに再接続してから削除してください');
+        checkedOriginal(state, context);
+        await google.remove(context.base);
+        const synced = await google.sync(repo);
+        applyState(synced.state);
+        channel?.postMessage({ revision: synced.state.revision });
+        toast('Googleカレンダーから予定を削除しました');
+        clearDraft();
+        edit = null;
+        $('task-dialog').close();
+        return;
+      }
       await commit('予定を削除', (s) => {
         const original = checkedOriginal(s, context);
         if (one)
@@ -1656,6 +1707,7 @@
           'shared-storage.js',
           'notifications.js',
           'shared-ui.js',
+          'google-calendar.js',
           'category-interactions.js',
           'updates.js',
           'app.js',
@@ -1829,9 +1881,26 @@
             toast('編集中の画面を閉じてから接続してください');
             return false;
           }
+          if (state.tasks.some((task) => globalThis.ScheduleGoogle?.isGoogleTask(task))) {
+            toast('Google連携を解除してから共有予定に切り替えてください');
+            return false;
+          }
           return true;
         },
       });
+      if (google)
+        globalThis.ScheduleGoogle.mount(google, {
+          repo,
+          onChange: applyState,
+          onError: (error) => toast(error.message),
+          beforeSwitch() {
+            if (document.querySelector('dialog[open]')) {
+              toast('編集中の画面を閉じてから接続してください');
+              return false;
+            }
+            return true;
+          },
+        });
       const taskId = params.get('task');
       if (taskId) {
         const occ = C.occurrences(state.tasks, selectedDate).find((o) => o.taskId === taskId);

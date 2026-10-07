@@ -19,6 +19,7 @@ async function app({
   now = new Date('2026-09-08T12:00:00').getTime(),
   session = new Map(),
   updateCheck,
+  googleConnection,
 } = {}) {
   const { window } = parseHTML(fs.readFileSync(path.join(root, 'RoundSchedule.html'), 'utf8'));
   const { document } = window;
@@ -135,9 +136,18 @@ async function app({
     'notifications.js',
     'category-interactions.js',
     'updates.js',
+    'google-calendar.js',
     'app.js',
   ]) {
     vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), ctx, { filename: file });
+    if (file === 'google-calendar.js' && googleConnection) {
+      ctx.ScheduleGoogle.Connection = class {
+        constructor() {
+          return googleConnection;
+        }
+      };
+      ctx.ScheduleGoogle.mount = () => {};
+    }
     if (file === 'updates.js' && updateCheck)
       ctx.ScheduleUpdates = { create: (options) => ({ check: () => updateCheck(options) }) };
   }
@@ -230,6 +240,57 @@ test('app boots, adds literal HTML-looking name, edits from list, and undo resto
   a.get('task-dialog').close();
   a.dispatch('undo', 'click');
   await waitFor(() => a.get('task-list').children.length === 0);
+  assert.equal((await a.repo.read()).tasks.length, 0);
+  a.close();
+});
+
+test('Google-backed task creation, editing and deletion use the calendar connection', async () => {
+  let remote = null;
+  const calls = [];
+  const googleConnection = {
+    connected: true,
+    async create(value) {
+      calls.push('create');
+      remote = { ...value, id: 'gcal:test-event' };
+    },
+    async update(value) {
+      calls.push('update');
+      remote = { ...value };
+    },
+    async remove() {
+      calls.push('delete');
+      remote = null;
+    },
+    async sync(repo) {
+      const state = await repo.mutate(
+        'Google同期',
+        (next) => {
+          next.tasks = next.tasks.filter((task) => !task.id.startsWith('gcal:'));
+          if (remote) next.tasks.push(remote);
+          return next;
+        },
+        { history: false }
+      );
+      return { state };
+    },
+  };
+  const a = await app({ googleConnection });
+  a.dispatch('add-task', 'click');
+  assert.equal(a.get('google-save-field').hidden, false);
+  assert.equal(a.get('task-google').checked, true);
+  fill(a, { name: 'Googleへ追加' });
+  await submit(a);
+  assert.deepEqual(calls, ['create']);
+  assert.equal((await a.repo.read()).tasks[0].name, 'Googleへ追加');
+  a.get('task-list').querySelector('button').click();
+  a.get('task-name').value = 'Googleで変更';
+  await submit(a);
+  assert.deepEqual(calls, ['create', 'update']);
+  assert.equal((await a.repo.read()).tasks[0].name, 'Googleで変更');
+  a.get('task-list').querySelector('button').click();
+  a.dispatch('delete-task', 'click');
+  await waitFor(() => !a.get('task-dialog').open);
+  assert.deepEqual(calls, ['create', 'update', 'delete']);
   assert.equal((await a.repo.read()).tasks.length, 0);
   a.close();
 });

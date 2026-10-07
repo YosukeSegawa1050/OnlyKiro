@@ -96,7 +96,7 @@ test('activate only deletes previous caches belonging to this application', asyn
   let p;
   w.events.activate({ waitUntil: (x) => (p = x) });
   await p;
-  assert.deepEqual(w.deleted, ['daily-schedule-v4']);
+  assert.deepEqual(w.deleted, ['daily-schedule-v4', 'daily-schedule-2.2.1']);
   assert.equal(w.claimed, true);
 });
 test('version requests identify the active release without accessing schedule data', () => {

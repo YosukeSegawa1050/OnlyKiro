@@ -1,17 +1,18 @@
 ﻿'use strict';
-const VERSION = '2.2.1';
+const VERSION = '2.2.2';
 const CACHE_NAME = `daily-schedule-${VERSION}`;
 const ASSETS = [
   './RoundSchedule.html',
-  './styles.css?v=2.2.1',
-  './core.js?v=2.2.1',
-  './storage.js?v=2.2.1',
-  './shared-storage.js?v=2.2.1',
-  './shared-ui.js?v=2.2.1',
-  './notifications.js?v=2.2.1',
-  './category-interactions.js?v=2.2.1',
-  './updates.js?v=2.2.1',
-  './app.js?v=2.2.1',
+  './styles.css?v=2.2.2',
+  './core.js?v=2.2.2',
+  './storage.js?v=2.2.2',
+  './shared-storage.js?v=2.2.2',
+  './shared-ui.js?v=2.2.2',
+  './google-calendar.js?v=2.2.2',
+  './notifications.js?v=2.2.2',
+  './category-interactions.js?v=2.2.2',
+  './updates.js?v=2.2.2',
+  './app.js?v=2.2.2',
   './ds-manifest.json',
   './icon-192.png',
   './icon-512.png',

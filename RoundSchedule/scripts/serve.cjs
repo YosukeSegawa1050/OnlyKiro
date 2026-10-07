@@ -13,6 +13,8 @@ const allowed = new Set([
   'storage.js',
   'shared-storage.js',
   'shared-ui.js',
+  'google-calendar.js',
+  'GOOGLE_CALENDAR_CONNECTION.md',
   'notifications.js',
   'category-interactions.js',
   'app.js',
@@ -30,6 +32,7 @@ const types = {
   '.json': 'application/json; charset=utf-8',
   '.png': 'image/png',
   '.svg': 'image/svg+xml',
+  '.md': 'text/markdown; charset=utf-8',
 };
 const server = http.createServer((req, res) => {
   const name = new URL(req.url, 'http://localhost').pathname.slice(1) || 'RoundSchedule.html';

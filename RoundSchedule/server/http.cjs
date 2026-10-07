@@ -25,6 +25,8 @@ const ASSETS = new Set([
   'schedule-icon.svg',
   'shared-storage.js',
   'shared-ui.js',
+  'google-calendar.js',
+  'GOOGLE_CALENDAR_CONNECTION.md',
 ]);
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -33,6 +35,7 @@ const TYPES = {
   '.json': 'application/json; charset=utf-8',
   '.png': 'image/png',
   '.svg': 'image/svg+xml',
+  '.md': 'text/markdown; charset=utf-8',
 };
 function json(res, status, value) {
   res.writeHead(status, {

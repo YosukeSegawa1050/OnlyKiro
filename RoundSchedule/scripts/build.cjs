@@ -13,6 +13,8 @@ const assets = [
   'storage.js',
   'shared-storage.js',
   'shared-ui.js',
+  'google-calendar.js',
+  'GOOGLE_CALENDAR_CONNECTION.md',
   'notifications.js',
   'category-interactions.js',
   'app.js',

@@ -1,6 +1,6 @@
 (function (root) {
   'use strict';
-  const VERSION = '2.2.1';
+  const VERSION = '2.2.2';
   const SCHEMA = 2;
   const DAY = 1440;
   const DEFAULT_CATEGORIES = [
